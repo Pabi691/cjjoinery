@@ -8,12 +8,14 @@ const Login = () => {
     const [email, setEmail] = useState('admin@cjjoinery.com');
     const [password, setPassword] = useState('password123');
     const [error, setError] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
     const navigate = useNavigate();
     const { theme, toggleTheme } = useTheme();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
+        setIsLoading(true);
         try {
             const { data } = await axios.post('/auth/login', {
                 email,
@@ -23,6 +25,8 @@ const Login = () => {
             navigate('/');
         } catch (err) {
             setError(err.response?.data?.message || 'Invalid email or password');
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -77,8 +81,9 @@ const Login = () => {
                         <button
                             className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition duration-150 ease-in-out"
                             type="submit"
+                            disabled={isLoading}
                         >
-                            Sign In
+                            {isLoading ? 'Signing In...' : 'Sign In'}
                         </button>
                     </div>
                     <div className="mt-4 text-center">
