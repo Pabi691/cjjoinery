@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import axios from '../utils/axiosConfig';
 import { useTheme } from '../context/ThemeContext';
 import { Sun, Moon, LayoutDashboard } from 'lucide-react';
 
@@ -17,7 +17,7 @@ const Signup = () => {
         e.preventDefault();
         setError('');
         try {
-            const { data } = await axios.post('http://localhost:5000/api/auth', {
+            const { data } = await axios.post('/auth', {
                 name,
                 email,
                 password,
