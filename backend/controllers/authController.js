@@ -1,5 +1,5 @@
 const asyncHandler = require('express-async-handler');
-const User = require('../models/User');
+const mockData = require('../data/mockData');
 const generateToken = require('../utils/generateToken');
 
 // @desc    Auth user & get token
@@ -8,9 +8,10 @@ const generateToken = require('../utils/generateToken');
 const authUser = asyncHandler(async (req, res) => {
     const { email, password } = req.body;
 
-    const user = await User.findOne({ email });
+    // FIND IN MOCK DATA
+    const user = mockData.users.find(u => u.email === email);
 
-    if (user && (await user.matchPassword(password))) {
+    if (user && password === 'password123') { // Simple password check for mock
         res.json({
             _id: user._id,
             name: user.name,
@@ -30,33 +31,39 @@ const authUser = asyncHandler(async (req, res) => {
 const registerUser = asyncHandler(async (req, res) => {
     const { name, email, password, phone, address } = req.body;
 
-    const userExists = await User.findOne({ email });
+    // CHECK MOCK DATA
+    const userExists = mockData.users.find(u => u.email === email);
 
     if (userExists) {
         res.status(400);
         throw new Error('User already exists');
     }
 
-    const user = await User.create({
+    const newUser = {
+        _id: Date.now().toString(),
         name,
         email,
-        password,
+        role: 'user', // Default role
         phone,
         address
-    });
+    };
+    mockData.users.push(newUser);
 
-    if (user) {
-        res.status(201).json({
-            _id: user._id,
-            name: user.name,
-            email: user.email,
-            role: user.role,
-            token: generateToken(user._id),
-        });
-    } else {
-        res.status(400);
-        throw new Error('Invalid user data');
-    }
+    res.status(201).json({
+        _id: newUser._id,
+        name: newUser.name,
+        email: newUser.email,
+        role: newUser.role,
+        token: generateToken(newUser._id),
+    });
 });
 
-module.exports = { authUser, registerUser };
+// @desc    Get all users
+// @route   GET /api/auth/users
+// @access  Private
+const getUsers = asyncHandler(async (req, res) => {
+    // MOCK DATA
+    res.json(mockData.users);
+});
+
+module.exports = { authUser, registerUser, getUsers };

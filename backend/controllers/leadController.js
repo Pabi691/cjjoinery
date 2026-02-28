@@ -1,19 +1,20 @@
 const asyncHandler = require('express-async-handler');
-const Lead = require('../models/Lead');
+const mockData = require('../data/mockData');
 
 // @desc    Get all leads
 // @route   GET /api/leads
 // @access  Private
 const getLeads = asyncHandler(async (req, res) => {
-    const leads = await Lead.find({});
-    res.json(leads);
+    // MOCK DATA
+    res.json(mockData.leads);
 });
 
 // @desc    Get lead by ID
 // @route   GET /api/leads/:id
 // @access  Private
 const getLeadById = asyncHandler(async (req, res) => {
-    const lead = await Lead.findById(req.params.id);
+    // MOCK DATA
+    const lead = mockData.leads.find(l => l._id === req.params.id);
     if (lead) {
         res.json(lead);
     } else {
@@ -28,17 +29,21 @@ const getLeadById = asyncHandler(async (req, res) => {
 const createLead = asyncHandler(async (req, res) => {
     const { customerName, phone, email, address, serviceType, description } = req.body;
 
-    const lead = new Lead({
+    // MOCK DATA
+    const newLead = {
+        _id: Date.now().toString(),
         customerName,
         phone,
         email,
         address,
         serviceType,
         description,
-    });
+        status: 'New',
+        createdAt: new Date().toISOString()
+    };
+    mockData.leads.push(newLead);
 
-    const createdLead = await lead.save();
-    res.status(201).json(createdLead);
+    res.status(201).json(newLead);
 });
 
 // @desc    Update lead
@@ -46,15 +51,16 @@ const createLead = asyncHandler(async (req, res) => {
 // @access  Private
 const updateLead = asyncHandler(async (req, res) => {
     const { status, assignedTo, description } = req.body;
-    const lead = await Lead.findById(req.params.id);
+
+    // MOCK DATA
+    const lead = mockData.leads.find(l => l._id === req.params.id);
 
     if (lead) {
         lead.status = status || lead.status;
         lead.assignedTo = assignedTo || lead.assignedTo;
         lead.description = description || lead.description;
 
-        const updatedLead = await lead.save();
-        res.json(updatedLead);
+        res.json(lead);
     } else {
         res.status(404);
         throw new Error('Lead not found');
@@ -65,10 +71,11 @@ const updateLead = asyncHandler(async (req, res) => {
 // @route   DELETE /api/leads/:id
 // @access  Private/Admin
 const deleteLead = asyncHandler(async (req, res) => {
-    const lead = await Lead.findById(req.params.id);
+    // MOCK DATA
+    const leadIndex = mockData.leads.findIndex(l => l._id === req.params.id);
 
-    if (lead) {
-        await lead.deleteOne();
+    if (leadIndex > -1) {
+        mockData.leads.splice(leadIndex, 1);
         res.json({ message: 'Lead removed' });
     } else {
         res.status(404);

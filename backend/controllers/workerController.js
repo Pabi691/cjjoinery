@@ -1,26 +1,25 @@
 const asyncHandler = require('express-async-handler');
-const Worker = require('../models/Worker');
-const Job = require('../models/Job');
+const mockData = require('../data/mockData');
 
 // @desc    Get all workers
 // @route   GET /api/workers
 // @access  Private
 const getWorkers = asyncHandler(async (req, res) => {
-    const workers = await Worker.find({}).populate('currentJob', 'title');
-    res.json(workers);
+    // MOCK DATA
+    res.json(mockData.workers);
 });
 
 // @desc    Get worker by ID
 // @route   GET /api/workers/:id
 // @access  Private
 const getWorkerById = asyncHandler(async (req, res) => {
-    const worker = await Worker.findById(req.params.id).populate('currentJob');
+    // MOCK DATA
+    const worker = mockData.workers.find(w => w._id === req.params.id);
 
     if (worker) {
-        // Aggregation for profile: Find all jobs where this worker is assigned
-        const jobs = await Job.find({ assignedWorkers: req.params.id }).select('title status startDate deadline');
-
-        res.json({ ...worker.toObject(), jobs });
+        // Mock aggregation: find jobs assigned to this worker
+        const jobs = mockData.jobs.filter(j => j.assignedWorkers.some(w => w._id === req.params.id));
+        res.json({ ...worker, jobs });
     } else {
         res.status(404);
         throw new Error('Worker not found');
@@ -33,17 +32,19 @@ const getWorkerById = asyncHandler(async (req, res) => {
 const createWorker = asyncHandler(async (req, res) => {
     const { name, email, phone, skills, hourlyRate, availability } = req.body;
 
-    const worker = new Worker({
+    // MOCK DATA
+    const newWorker = {
+        _id: Date.now().toString(),
         name,
         email,
         phone,
         skills,
         hourlyRate,
         availability
-    });
+    };
+    mockData.workers.push(newWorker);
 
-    const createdWorker = await worker.save();
-    res.status(201).json(createdWorker);
+    res.status(201).json(newWorker);
 });
 
 // @desc    Update worker
@@ -51,7 +52,9 @@ const createWorker = asyncHandler(async (req, res) => {
 // @access  Private/Admin
 const updateWorker = asyncHandler(async (req, res) => {
     const { name, email, phone, skills, hourlyRate, availability } = req.body;
-    const worker = await Worker.findById(req.params.id);
+
+    // MOCK DATA
+    const worker = mockData.workers.find(w => w._id === req.params.id);
 
     if (worker) {
         worker.name = name || worker.name;
@@ -61,8 +64,7 @@ const updateWorker = asyncHandler(async (req, res) => {
         worker.hourlyRate = hourlyRate || worker.hourlyRate;
         worker.availability = availability || worker.availability;
 
-        const updatedWorker = await worker.save();
-        res.json(updatedWorker);
+        res.json(worker);
     } else {
         res.status(404);
         throw new Error('Worker not found');

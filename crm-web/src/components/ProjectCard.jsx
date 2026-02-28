@@ -55,8 +55,8 @@ const ProjectCard = ({ project, onEdit }) => {
             <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center">
                 <div className="flex -space-x-2">
                     {project.assignedWorkers?.map((worker, index) => (
-                        <div key={worker._id || index} className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900 border-2 border-white dark:border-gray-800 flex items-center justify-center text-xs font-bold text-indigo-600 dark:text-indigo-400" title={worker.name}>
-                            {worker.name.charAt(0)}
+                        <div key={worker._id || index} className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900 border-2 border-white dark:border-gray-800 flex items-center justify-center text-xs font-bold text-indigo-600 dark:text-indigo-400" title={worker?.name || 'Unknown'}>
+                            {worker?.name?.charAt(0) || '?'}
                         </div>
                     ))}
                     {project.assignedWorkers?.length > 3 && (

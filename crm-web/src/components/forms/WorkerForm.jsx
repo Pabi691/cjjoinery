@@ -111,7 +111,7 @@ const WorkerForm = ({ worker, onSuccess, onCancel }) => {
                     />
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Availability</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Status</label>
                     <select
                         name="availability"
                         value={formData.availability}

@@ -1,19 +1,20 @@
 const asyncHandler = require('express-async-handler');
-const Quote = require('../models/Quote');
+const mockData = require('../data/mockData');
 
 // @desc    Get all quotes
 // @route   GET /api/quotes
 // @access  Private
 const getQuotes = asyncHandler(async (req, res) => {
-    const quotes = await Quote.find({}).populate('leadId', 'customerName');
-    res.json(quotes);
+    // MOCK DATA
+    res.json(mockData.quotes);
 });
 
 // @desc    Get quote by ID
 // @route   GET /api/quotes/:id
 // @access  Private
 const getQuoteById = asyncHandler(async (req, res) => {
-    const quote = await Quote.findById(req.params.id).populate('leadId');
+    // MOCK DATA
+    const quote = mockData.quotes.find(q => q._id === req.params.id);
     if (quote) {
         res.json(quote);
     } else {
@@ -28,7 +29,9 @@ const getQuoteById = asyncHandler(async (req, res) => {
 const createQuote = asyncHandler(async (req, res) => {
     const { leadId, customerId, items, subtotal, vat, total, validUntil } = req.body;
 
-    const quote = new Quote({
+    // MOCK DATA
+    const newQuote = {
+        _id: Date.now().toString(),
         leadId,
         customerId,
         items,
@@ -36,10 +39,11 @@ const createQuote = asyncHandler(async (req, res) => {
         vat,
         total,
         validUntil,
-    });
+        status: 'Draft'
+    };
+    mockData.quotes.push(newQuote);
 
-    const createdQuote = await quote.save();
-    res.status(201).json(createdQuote);
+    res.status(201).json(newQuote);
 });
 
 // @desc    Update quote status
@@ -47,12 +51,13 @@ const createQuote = asyncHandler(async (req, res) => {
 // @access  Private
 const updateQuote = asyncHandler(async (req, res) => {
     const { status } = req.body; // Approved, Rejected
-    const quote = await Quote.findById(req.params.id);
+
+    // MOCK DATA
+    const quote = mockData.quotes.find(q => q._id === req.params.id);
 
     if (quote) {
         quote.status = status || quote.status;
-        const updatedQuote = await quote.save();
-        res.json(updatedQuote);
+        res.json(quote);
     } else {
         res.status(404);
         throw new Error('Quote not found');

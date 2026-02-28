@@ -74,6 +74,10 @@ const ProjectDetails = () => {
                                     <Clock size={18} className="mr-3 text-indigo-600 dark:text-indigo-400" />
                                     <span>Deadline: {project.deadline ? DateTime.fromISO(project.deadline).toLocaleString(DateTime.DATE_MED) : 'No deadline'}</span>
                                 </div>
+                                <div className="flex items-center text-gray-600 dark:text-gray-400">
+                                    <Clock size={18} className="mr-3 text-indigo-600 dark:text-indigo-400" />
+                                    <span>Expected Time: {project.expectedHours ? `${project.expectedHours} hours` : 'Not set'}</span>
+                                </div>
                             </div>
                         </div>
 
@@ -103,9 +107,9 @@ const ProjectDetails = () => {
                                             className="flex items-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                                         >
                                             <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold text-xs mr-3">
-                                                {worker.name.charAt(0)}
+                                                {worker?.name?.charAt(0) || '?'}
                                             </div>
-                                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{worker.name}</span>
+                                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{worker?.name || 'Unknown'}</span>
                                         </div>
                                     ))}
                                 </div>

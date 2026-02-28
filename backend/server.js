@@ -7,7 +7,11 @@ const connectDB = require('./config/db');
 
 dotenv.config();
 
-connectDB();
+// connectDB().catch(err => {
+//     console.error('Database connection failed (Check IP Whitelist in Atlas):', err.message);
+//     // process.exit(1); // Keep server running for diagnostics
+// });
+console.log('MOCK MODE: Database connection disabled.');
 
 const app = express();
 

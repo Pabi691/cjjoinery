@@ -11,19 +11,24 @@ const ProjectForm = ({ project, onSuccess, onCancel }) => {
         assignedWorkers: [] // Ideally a multi-select
     });
     const [workers, setWorkers] = useState([]);
+    const [customers, setCustomers] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
     useEffect(() => {
-        const fetchWorkers = async () => {
+        const fetchData = async () => {
             try {
-                const { data } = await axios.get('/workers');
-                setWorkers(data);
+                const [workersRes, customersRes] = await Promise.all([
+                    axios.get('/workers'),
+                    axios.get('/auth/users')
+                ]);
+                setWorkers(workersRes.data);
+                setCustomers(customersRes.data);
             } catch (err) {
-                console.error('Failed to fetch workers', err);
+                console.error('Failed to fetch initial data', err);
             }
         };
-        fetchWorkers();
+        fetchData();
 
         if (project) {
             setFormData({
@@ -31,7 +36,8 @@ const ProjectForm = ({ project, onSuccess, onCancel }) => {
                 description: project.description,
                 status: project.status,
                 deadline: project.deadline ? project.deadline.split('T')[0] : '',
-                customerId: project.customerId?._id || project.customerId, // Handle populated or ID
+                expectedHours: project.expectedHours || '',
+                customerId: project.customerId?._id || project.customerId || '', // Handle populated or ID
                 assignedWorkers: project.assignedWorkers?.map(w => w._id || w) || []
             });
         }
@@ -124,6 +130,34 @@ const ProjectForm = ({ project, onSuccess, onCancel }) => {
                         className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm p-2"
                     />
                 </div>
+            </div>
+
+            <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Expected Time (Hours)</label>
+                <input
+                    type="number"
+                    name="expectedHours"
+                    value={formData.expectedHours || ''}
+                    onChange={handleChange}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm p-2"
+                />
+            </div>
+
+            <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Customer</label>
+                <select
+                    name="customerId"
+                    value={formData.customerId}
+                    onChange={handleChange}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm p-2"
+                >
+                    <option value="">Select Customer</option>
+                    {customers.map(customer => (
+                        <option key={customer._id} value={customer._id}>
+                            {customer.name} ({customer.email})
+                        </option>
+                    ))}
+                </select>
             </div>
 
             <div>

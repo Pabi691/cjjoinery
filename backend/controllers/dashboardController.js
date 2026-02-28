@@ -1,39 +1,22 @@
 const asyncHandler = require('express-async-handler');
-const Job = require('../models/Job');
-const Worker = require('../models/Worker');
-const Quote = require('../models/Quote');
+const mockData = require('../data/mockData');
 
 // @desc    Get dashboard summary statistics
 // @route   GET /api/dashboard/summary
 // @access  Private
 const getDashboardSummary = asyncHandler(async (req, res) => {
-    // 1. Active Projects (In Progress)
-    const activeProjectsCount = await Job.countDocuments({ status: 'In Progress' });
+    // MOCK DATA CALCULATIONS
+    const activeProjectsCount = mockData.jobs.filter(j => j.status === 'In Progress').length;
+    const activeWorkersCount = mockData.workers.filter(w => w.status === 'Active' || w.status === 'Available').length;
+    const pendingQuotesCount = mockData.quotes.filter(q => q.status === 'Pending').length;
 
-    // 2. Active Workers (Total workers)
-    const activeWorkersCount = await Worker.countDocuments({});
-    // Alternatively, if you want only available workers: { availability: 'Available' }
+    // Calculate Total Revenue from Approved Quotes
+    const totalRevenue = mockData.quotes
+        .filter(q => q.status === 'Approved')
+        .reduce((sum, q) => sum + q.total, 0);
 
-    // 3. Pending Quotes
-    const pendingQuotesCount = await Quote.countDocuments({ status: 'Pending' });
+    const recentProjects = mockData.jobs.slice(0, 5); // Just take first 5 for now
 
-    // 4. Total Revenue (Sum of completed and in-progress jobs/quotes)
-    // Assuming revenue comes from Quotes linked to these jobs
-    // For simplicity, we can sum up all "Approved" quotes for now, or use a more complex aggregation
-    const revenueResult = await Quote.aggregate([
-        { $match: { status: 'Approved' } },
-        { $group: { _id: null, total: { $sum: '$total' } } }
-    ]);
-    const totalRevenue = revenueResult.length > 0 ? revenueResult[0].total : 0;
-
-    // 5. Recent Projects (Limit 5)
-    const recentProjects = await Job.find({})
-        .sort({ createdAt: -1 })
-        .limit(5)
-        .populate('assignedWorkers', 'name');
-
-    // 6. Monthly Revenue (Mock or Aggregation)
-    // For this MVP, we'll keep the mock data structure for the chart but can populate it later
     const monthlyRevenue = [
         { name: 'Jan', revenue: 4000, projects: 2 },
         { name: 'Feb', revenue: 3000, projects: 1 },

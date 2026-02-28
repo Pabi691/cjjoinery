@@ -3,6 +3,7 @@ import { configureStore } from '@reduxjs/toolkit';
 
 export const store = configureStore({
     reducer: {
-        // auth: authReducer,
+        // Placeholder reducer to prevent "Store does not have a valid reducer" error
+        _persist: (state = {}) => state,
     },
 });
