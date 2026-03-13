@@ -5,8 +5,7 @@ on:
     branches:
       - main
       - master
-    paths:
-      - 'mobile-app/**'
+  workflow_dispatch:
 
 jobs:
   build:
