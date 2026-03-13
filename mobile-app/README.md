@@ -1,16 +1,23 @@
-# cj_joinery_mobile
+# CJ Joinery Worker Mobile App
 
-A new Flutter project.
+Mobile app for field workers to view jobs, schedule work, update status, and submit daily logs.
 
-## Getting Started
+## Worker Login
+Workers use credentials created by the admin in the web dashboard.
 
-This project is a starting point for a Flutter application.
+Demo credentials:
+- Username: john.carpenter
+- Password: worker123
 
-A few resources to get you started if this is your first Flutter project:
+## API Base URL
+The app uses:
+`http://localhost:5000/api`
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+If you run on Android emulator, switch the base URL to:
+`http://10.0.2.2:5000/api`
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Run Locally
+```bash
+flutter pub get
+flutter run
+```

@@ -4,6 +4,8 @@ import axios from '../../utils/axiosConfig';
 const WorkerForm = ({ worker, onSuccess, onCancel }) => {
     const [formData, setFormData] = useState({
         name: '',
+        username: '',
+        password: '',
         email: '',
         phone: '',
         hourlyRate: '',
@@ -17,6 +19,8 @@ const WorkerForm = ({ worker, onSuccess, onCancel }) => {
         if (worker) {
             setFormData({
                 name: worker.name,
+                username: worker.username || '',
+                password: '',
                 email: worker.email,
                 phone: worker.phone,
                 hourlyRate: worker.hourlyRate,
@@ -45,6 +49,9 @@ const WorkerForm = ({ worker, onSuccess, onCancel }) => {
             if (worker) {
                 // Assuming we have an update endpoint, which we probably need to add to backend
                 // For now, let's assume PUT /workers/:id exists or we add it
+                if (!payload.password) {
+                    delete payload.password;
+                }
                 await axios.put(`/workers/${worker._id}`, payload);
             } else {
                 await axios.post('/workers', payload);
@@ -71,6 +78,35 @@ const WorkerForm = ({ worker, onSuccess, onCancel }) => {
                     required
                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm p-2"
                 />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Username</label>
+                    <input
+                        type="text"
+                        name="username"
+                        value={formData.username}
+                        onChange={handleChange}
+                        required={!worker}
+                        placeholder="e.g. john.carpenter"
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm p-2"
+                    />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        {worker ? 'Reset Password (optional)' : 'Password'}
+                    </label>
+                    <input
+                        type="text"
+                        name="password"
+                        value={formData.password}
+                        onChange={handleChange}
+                        required={!worker}
+                        placeholder={worker ? 'Leave blank to keep current' : 'Set initial password'}
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm p-2"
+                    />
+                </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

@@ -80,6 +80,39 @@ const WorkerProfile = () => {
 
             {/* Project History */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-100 dark:border-gray-700">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Credentials</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                        <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">Username</div>
+                        <div className="text-sm font-semibold text-gray-900 dark:text-white mt-1">
+                            {worker.username || 'Not set'}
+                        </div>
+                    </div>
+                    <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                        <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">Password</div>
+                        <div className="text-sm font-semibold text-gray-900 dark:text-white mt-1">
+                            {worker.password || 'Not set'}
+                        </div>
+                    </div>
+                </div>
+
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Status History</h2>
+                {worker.statusHistory && worker.statusHistory.length > 0 ? (
+                    <div className="space-y-3 mb-8">
+                        {worker.statusHistory.map((entry) => (
+                            <div key={entry._id} className="flex items-start justify-between bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                                <div>
+                                    <div className="text-sm font-semibold text-gray-900 dark:text-white">{entry.status}</div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400">{entry.note || 'No note'}</div>
+                                </div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400">{entry.date}</div>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <p className="text-gray-500 dark:text-gray-400 mb-8">No status updates yet.</p>
+                )}
+
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Project History</h2>
                 {worker.jobs && worker.jobs.length > 0 ? (
                     <div className="overflow-x-auto">

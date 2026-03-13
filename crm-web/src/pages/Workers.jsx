@@ -103,6 +103,14 @@ const Workers = () => {
                                     <span>{worker.email}</span>
                                 </div>
                                 <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
+                                    <User size={16} className="mr-3" />
+                                    <span>Login: {worker.username || 'Not set'}</span>
+                                </div>
+                                <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
+                                    <AlertCircle size={16} className="mr-3" />
+                                    <span>Password: {worker.password || 'Not set'}</span>
+                                </div>
+                                <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
                                     <Phone size={16} className="mr-3" />
                                     <span>{worker.phone}</span>
                                 </div>

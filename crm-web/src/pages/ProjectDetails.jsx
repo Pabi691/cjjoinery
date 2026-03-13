@@ -119,6 +119,29 @@ const ProjectDetails = () => {
                         </div>
 
                         <div>
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Schedules</h3>
+                            {project.schedules && project.schedules.length > 0 ? (
+                                <div className="space-y-3">
+                                    {project.schedules.map((schedule) => {
+                                        const worker = project.assignedWorkers?.find(w => w._id === schedule.workerId);
+                                        return (
+                                            <div key={schedule.workerId} className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                                                <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                                                    {worker?.name || 'Worker'}
+                                                </div>
+                                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                    {schedule.dates.join(', ')}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <p className="text-sm text-gray-500 dark:text-gray-400 italic">No schedules added</p>
+                            )}
+                        </div>
+
+                        <div>
                             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Materials</h3>
                             {project.materials && project.materials.length > 0 ? (
                                 <div className="flex flex-wrap gap-2">
@@ -134,6 +157,37 @@ const ProjectDetails = () => {
                             )}
                         </div>
                     </div>
+                </div>
+
+                <div className="p-6 border-t border-gray-100 dark:border-gray-700">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Daily Logs</h3>
+                    {project.dailyLogs && project.dailyLogs.length > 0 ? (
+                        <div className="space-y-4">
+                            {project.dailyLogs.map((log) => (
+                                <div key={log._id} className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                                                {log.workerName || 'Worker'}
+                                            </div>
+                                            <div className="text-xs text-gray-500 dark:text-gray-400">{log.date}</div>
+                                        </div>
+                                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                                            {log.location ? `Geo: ${log.location.lat}, ${log.location.lng}` : 'No geo'}
+                                        </div>
+                                    </div>
+                                    <p className="text-sm text-gray-600 dark:text-gray-300 mt-2">{log.description}</p>
+                                    {log.imageUrl && (
+                                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                            Image: {log.imageUrl}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">No daily logs yet.</p>
+                    )}
                 </div>
             </div>
         </div>
