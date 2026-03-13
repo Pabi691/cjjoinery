@@ -51,7 +51,29 @@ const mockData = {
             assignedWorkers: [{ _id: 'w1', name: 'John Carpenter' }],
             startDate: new Date().toISOString(),
             dueDate: new Date(Date.now() + 604800000).toISOString(),
-            expectedHours: 40
+            expectedHours: 40,
+            schedules: [
+                {
+                    workerId: 'w1',
+                    dates: [
+                        new Date().toISOString().slice(0, 10),
+                        new Date(Date.now() + 86400000).toISOString().slice(0, 10),
+                        new Date(Date.now() + 172800000).toISOString().slice(0, 10)
+                    ]
+                }
+            ],
+            dailyLogs: [
+                {
+                    _id: 'dl1',
+                    workerId: 'w1',
+                    workerName: 'John Carpenter',
+                    date: new Date().toISOString().slice(0, 10),
+                    description: 'Measured room and finalized wardrobe layout.',
+                    imageUrl: 'demo-photo-wardrobe.jpg',
+                    location: { lat: 51.5074, lng: -0.1278 },
+                    createdAt: new Date().toISOString()
+                }
+            ]
         },
         {
             _id: 'j2',
@@ -63,7 +85,9 @@ const mockData = {
             assignedWorkers: [],
             startDate: new Date(Date.now() + 172800000).toISOString(),
             dueDate: new Date(Date.now() + 345600000).toISOString(),
-            expectedHours: 5
+            expectedHours: 5,
+            schedules: [],
+            dailyLogs: []
         }
     ],
     quotes: [
@@ -97,18 +121,58 @@ const mockData = {
         {
             _id: 'w1',
             name: 'John Carpenter',
+            username: 'john.carpenter',
+            password: 'worker123',
+            email: 'john.carpenter@cjjoinery.com',
+            phone: '07987654321',
             skills: ['Joinery', 'Cabinet Making'],
             status: 'Active',
             hourlyRate: 25,
-            availability: 'Available'
+            availability: 'Available',
+            statusHistory: [
+                {
+                    _id: 'sh1',
+                    date: new Date().toISOString().slice(0, 10),
+                    status: 'Available',
+                    note: 'Ready for assignments'
+                }
+            ]
         },
         {
             _id: 'w2',
             name: 'Bob Builder',
+            username: 'bob.builder',
+            password: 'worker123',
+            email: 'bob.builder@cjjoinery.com',
+            phone: '07123450001',
             skills: ['General Repair'],
             status: 'Available',
             hourlyRate: 20,
-            availability: 'Busy'
+            availability: 'Busy',
+            statusHistory: [
+                {
+                    _id: 'sh2',
+                    date: new Date().toISOString().slice(0, 10),
+                    status: 'Busy',
+                    note: 'On-site work'
+                }
+            ]
+        }
+    ],
+    notifications: [
+        {
+            _id: 'n1',
+            type: 'status_change',
+            workerId: 'w1',
+            workerName: 'John Carpenter',
+            message: 'Status updated to Available',
+            details: {
+                date: new Date().toISOString().slice(0, 10),
+                status: 'Available',
+                note: 'Ready for assignments'
+            },
+            createdAt: new Date().toISOString(),
+            read: false
         }
     ]
 };

@@ -7,17 +7,19 @@ const connectDB = require('./config/db');
 
 dotenv.config();
 
-// connectDB().catch(err => {
-//     console.error('Database connection failed (Check IP Whitelist in Atlas):', err.message);
-//     // process.exit(1); // Keep server running for diagnostics
-// });
-console.log('MOCK MODE: Database connection disabled.');
+connectDB().catch(err => {
+    console.error('Database connection failed (Check IP Whitelist in Atlas):', err.message);
+    // process.exit(1); // Keep server running for diagnostics
+});
+// console.log('MOCK MODE: Database connection disabled.');
 
 const app = express();
 
 app.use(express.json());
 app.use(cors({
-    origin: ['https://cjjoinery-frontend.vercel.app', 'http://localhost:5173', 'http://localhost:5174'],
+    origin: function (origin, callback) {
+        callback(null, true);
+    },
     credentials: true
 }));
 app.use(helmet());
@@ -32,6 +34,8 @@ app.use('/api/invoices', require('./routes/invoiceRoutes'));
 app.use('/api/reviews', require('./routes/reviewRoutes'));
 app.use('/api/workers', require('./routes/workerRoutes'));
 app.use('/api/dashboard', require('./routes/dashboardRoutes'));
+app.use('/api/worker', require('./routes/workerAppRoutes'));
+app.use('/api/notifications', require('./routes/notificationRoutes'));
 
 app.get('/', (req, res) => {
     res.send('API is running...');

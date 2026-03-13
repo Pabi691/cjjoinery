@@ -30,17 +30,27 @@ const getWorkerById = asyncHandler(async (req, res) => {
 // @route   POST /api/workers
 // @access  Private/Admin
 const createWorker = asyncHandler(async (req, res) => {
-    const { name, email, phone, skills, hourlyRate, availability } = req.body;
+    const { name, email, phone, skills, hourlyRate, availability, username, password } = req.body;
 
     // MOCK DATA
     const newWorker = {
         _id: Date.now().toString(),
         name,
+        username,
+        password,
         email,
         phone,
         skills,
         hourlyRate,
-        availability
+        availability,
+        statusHistory: [
+            {
+                _id: `sh-${Date.now()}`,
+                date: new Date().toISOString().slice(0, 10),
+                status: availability || 'Available',
+                note: 'Created by admin'
+            }
+        ]
     };
     mockData.workers.push(newWorker);
 
@@ -51,7 +61,7 @@ const createWorker = asyncHandler(async (req, res) => {
 // @route   PUT /api/workers/:id
 // @access  Private/Admin
 const updateWorker = asyncHandler(async (req, res) => {
-    const { name, email, phone, skills, hourlyRate, availability } = req.body;
+    const { name, email, phone, skills, hourlyRate, availability, username, password } = req.body;
 
     // MOCK DATA
     const worker = mockData.workers.find(w => w._id === req.params.id);
@@ -63,6 +73,10 @@ const updateWorker = asyncHandler(async (req, res) => {
         worker.skills = skills || worker.skills;
         worker.hourlyRate = hourlyRate || worker.hourlyRate;
         worker.availability = availability || worker.availability;
+        worker.username = username || worker.username;
+        if (password) {
+            worker.password = password;
+        }
 
         res.json(worker);
     } else {

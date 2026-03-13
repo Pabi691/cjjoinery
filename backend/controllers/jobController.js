@@ -1,12 +1,20 @@
 const asyncHandler = require('express-async-handler');
 const mockData = require('../data/mockData');
 
+const normalizeJob = (job) => {
+    if (!job) return job;
+    return {
+        ...job,
+        deadline: job.deadline || job.dueDate || job.endDate || null
+    };
+};
+
 // @desc    Get all jobs
 // @route   GET /api/jobs
 // @access  Private
 const getJobs = asyncHandler(async (req, res) => {
     // MOCK DATA
-    res.json(mockData.jobs);
+    res.json(mockData.jobs.map(normalizeJob));
 });
 
 // @desc    Get job by ID
@@ -17,7 +25,7 @@ const getJobById = asyncHandler(async (req, res) => {
     const job = mockData.jobs.find(j => j._id === req.params.id);
 
     if (job) {
-        res.json(job);
+        res.json(normalizeJob(job));
     } else {
         res.status(404);
         throw new Error('Job not found');
@@ -56,7 +64,7 @@ const createJob = asyncHandler(async (req, res) => {
     };
     mockData.jobs.push(newJob);
 
-    res.status(201).json(newJob);
+    res.status(201).json(normalizeJob(newJob));
 });
 
 // @desc    Update job details
@@ -94,7 +102,7 @@ const updateJob = asyncHandler(async (req, res) => {
             job.afterImages = [...job.afterImages, ...afterImages];
         }
 
-        res.json(job);
+        res.json(normalizeJob(job));
     } else {
         res.status(404);
         throw new Error('Job not found');
