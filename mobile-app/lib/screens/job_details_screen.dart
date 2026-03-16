@@ -297,10 +297,11 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Daily log submitted.')),
       );
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
+      final errorMessage = e.toString().replaceFirst('Exception: ', '');
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to submit daily log.')),
+        SnackBar(content: Text('Failed to submit daily log: $errorMessage')),
       );
     } finally {
       if (mounted) setState(() => _savingLog = false);
