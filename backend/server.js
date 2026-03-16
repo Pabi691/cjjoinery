@@ -5,6 +5,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const connectDB = require('./config/db');
 const path = require('path');
+const mongoose = require('mongoose');
 
 dotenv.config();
 
@@ -43,6 +44,13 @@ app.use('/api/notifications', require('./routes/notificationRoutes'));
 
 app.get('/', (req, res) => {
     res.send('API is running...');
+});
+
+app.get('/api/health', (req, res) => {
+    res.json({
+        dbState: mongoose.connection.readyState, // 0=disconnected, 1=connected, 2=connecting, 3=disconnecting
+        dbName: mongoose.connection.name || null
+    });
 });
 
 // Error Handling Middleware

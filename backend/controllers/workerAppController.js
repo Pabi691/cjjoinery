@@ -1,23 +1,13 @@
 const asyncHandler = require('express-async-handler');
 const mongoose = require('mongoose');
-const mockData = require('../data/mockData');
+const bcrypt = require('bcryptjs');
 const Job = require('../models/Job');
 const Worker = require('../models/Worker');
 
-const createNotification = (payload) => {
-    const notification = {
-        _id: `n-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-        createdAt: new Date().toISOString(),
-        read: false,
-        ...payload
-    };
-    mockData.notifications.unshift(notification);
-    return notification;
-};
-
 const sanitizeWorker = (worker) => {
     if (!worker) return null;
-    const { password, ...safeWorker } = worker;
+    const safeWorker = worker.toObject ? worker.toObject() : worker;
+    delete safeWorker.password;
     return safeWorker;
 };
 
@@ -28,11 +18,28 @@ const canUseDb = () => mongoose.connection && mongoose.connection.readyState ===
 // @access  Public
 const loginWorker = asyncHandler(async (req, res) => {
     const { username, password } = req.body;
-    const worker = mockData.workers.find(
-        w => w.username === username || w.email === username
-    );
+    if (!canUseDb()) {
+        res.status(503);
+        throw new Error('Database not connected');
+    }
 
-    if (!worker || worker.password !== password) {
+    const worker = await Worker.findOne({
+        $or: [{ username }, { email: username }]
+    });
+
+    if (!worker || !worker.password) {
+        res.status(401);
+        throw new Error('Invalid worker credentials');
+    }
+
+    let matches = false;
+    if (worker.password.startsWith('$2')) {
+        matches = await bcrypt.compare(password, worker.password);
+    } else {
+        matches = worker.password === password;
+    }
+
+    if (!matches) {
         res.status(401);
         throw new Error('Invalid worker credentials');
     }
@@ -48,12 +55,14 @@ const loginWorker = asyncHandler(async (req, res) => {
 // @access  Public
 const getWorkerJobs = asyncHandler(async (req, res) => {
     const { workerId } = req.params;
-    const jobs = mockData.jobs
-        .filter(job => (job.assignedWorkers || []).some(w => w._id === workerId))
-        .map(job => {
-            const { customerId, ...rest } = job;
-            return rest;
-        });
+    if (!canUseDb()) {
+        res.status(503);
+        throw new Error('Database not connected');
+    }
+
+    const jobs = await Job.find({ assignedWorkers: workerId })
+        .populate('assignedWorkers', 'name')
+        .lean();
 
     res.json(jobs);
 });
@@ -64,15 +73,19 @@ const getWorkerJobs = asyncHandler(async (req, res) => {
 const updateWorkerStatus = asyncHandler(async (req, res) => {
     const { workerId } = req.params;
     const { date, status, note } = req.body;
+    if (!canUseDb()) {
+        res.status(503);
+        throw new Error('Database not connected');
+    }
 
-    const worker = mockData.workers.find(w => w._id === workerId);
+    const worker = await Worker.findById(workerId);
     if (!worker) {
         res.status(404);
         throw new Error('Worker not found');
     }
 
     worker.availability = status || worker.availability;
-    if (!worker.statusHistory) worker.statusHistory = [];
+    worker.statusHistory = worker.statusHistory || [];
     const statusEntry = {
         _id: `sh-${Date.now()}`,
         date: date || new Date().toISOString().slice(0, 10),
@@ -80,14 +93,7 @@ const updateWorkerStatus = asyncHandler(async (req, res) => {
         note: note || ''
     };
     worker.statusHistory.unshift(statusEntry);
-
-    createNotification({
-        type: 'status_change',
-        workerId: worker._id,
-        workerName: worker.name,
-        message: `Status updated to ${statusEntry.status}`,
-        details: statusEntry
-    });
+    await worker.save();
 
     res.json({ worker: sanitizeWorker(worker), statusEntry });
 });
@@ -98,30 +104,28 @@ const updateWorkerStatus = asyncHandler(async (req, res) => {
 const scheduleJob = asyncHandler(async (req, res) => {
     const { workerId, jobId } = req.params;
     const { dates } = req.body;
+    if (!canUseDb()) {
+        res.status(503);
+        throw new Error('Database not connected');
+    }
 
-    const job = mockData.jobs.find(j => j._id === jobId);
+    const job = await Job.findById(jobId);
     if (!job) {
         res.status(404);
         throw new Error('Job not found');
     }
 
-    if (!job.schedules) job.schedules = [];
-    const existing = job.schedules.find(s => s.workerId === workerId);
+    job.schedules = job.schedules || [];
+    const existing = job.schedules.find(
+        s => s.workerId?.toString() === workerId
+    );
     if (existing) {
         existing.dates = dates || [];
     } else {
         job.schedules.push({ workerId, dates: dates || [] });
     }
 
-    const worker = mockData.workers.find(w => w._id === workerId);
-    createNotification({
-        type: 'schedule_update',
-        workerId,
-        workerName: worker?.name || 'Worker',
-        message: `Scheduled work for ${job.title}`,
-        details: { jobId, jobTitle: job.title, dates: dates || [] }
-    });
-
+    await job.save();
     res.json(job);
 });
 
@@ -220,40 +224,8 @@ const addDailyLog = asyncHandler(async (req, res) => {
         return;
     }
 
-    const job = mockData.jobs.find(j => j._id === jobId);
-    if (!job) {
-        res.status(404);
-        throw new Error('Job not found');
-    }
-
-    if (!job.dailyLogs) job.dailyLogs = [];
-    const worker = mockData.workers.find(w => w._id === workerId);
-
-    const logEntryId = `dl-${Date.now()}`;
-    const logEntry = {
-        _id: logEntryId,
-        workerId,
-        workerName: worker?.name || 'Worker',
-        date: date || new Date().toISOString().slice(0, 10),
-        description,
-        imageUrl: imagePayload ? `/api/worker/jobs/${jobId}/daily-logs/${logEntryId}/image` : resolvedImageUrl,
-        image: imagePayload || undefined,
-        location: hasLocation ? resolvedLocation : null,
-        createdAt: new Date().toISOString()
-    };
-    job.dailyLogs.unshift(logEntry);
-
-    createNotification({
-        type: 'daily_log',
-        workerId,
-        workerName: worker?.name || 'Worker',
-        message: `Daily log added for ${job.title}`,
-        details: { jobId, jobTitle: job.title, log: logEntry }
-    });
-
-    const responseLog = { ...logEntry };
-    delete responseLog.image;
-    res.json(responseLog);
+    res.status(503);
+    throw new Error('Database not connected');
 });
 
 // @desc    Get daily log image
@@ -266,14 +238,6 @@ const getDailyLogImage = asyncHandler(async (req, res) => {
     if (canUseDb() && mongoose.Types.ObjectId.isValid(jobId)) {
         const job = await Job.findById(jobId).select('dailyLogs');
         const log = job?.dailyLogs?.id(logId);
-        if (log?.image?.data) {
-            image = log.image;
-        }
-    }
-
-    if (!image) {
-        const job = mockData.jobs.find(j => j._id === jobId);
-        const log = job?.dailyLogs?.find(l => l._id?.toString() === logId);
         if (log?.image?.data) {
             image = log.image;
         }

@@ -3,6 +3,18 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from '../utils/axiosConfig';
 import { Calendar, Users, CheckCircle, Clock, AlertCircle, ArrowLeft, Package, User } from 'lucide-react';
 import { DateTime } from 'luxon';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import L from 'leaflet';
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+    iconRetinaUrl: markerIcon2x,
+    iconUrl: markerIcon,
+    shadowUrl: markerShadow,
+});
 
 const ProjectDetails = () => {
     const { id } = useParams();
@@ -25,15 +37,7 @@ const ProjectDetails = () => {
         return Number.isFinite(num) ? num : null;
     };
 
-    const mapPreviewUrl = (lat, lng) => {
-        const params = new URLSearchParams({
-            center: `${lat},${lng}`,
-            zoom: '15',
-            size: '640x320',
-            markers: `${lat},${lng},red-pushpin`
-        });
-        return `https://staticmap.openstreetmap.de/staticmap.php?${params.toString()}`;
-    };
+    const mapCenter = (lat, lng) => [lat, lng];
 
     useEffect(() => {
         const fetchProject = async () => {
@@ -226,11 +230,22 @@ const ProjectDetails = () => {
                                     )}
                                     {hasCoords && (
                                         <div className="mt-3">
-                                            <img
-                                                src={mapPreviewUrl(lat, lng)}
-                                                alt="Location map"
-                                                className="w-full max-w-md rounded-md border border-gray-200 dark:border-gray-600"
-                                            />
+                                            <div className="w-full max-w-md rounded-md overflow-hidden border border-gray-200 dark:border-gray-600">
+                                                <MapContainer
+                                                    center={mapCenter(lat, lng)}
+                                                    zoom={15}
+                                                    style={{ height: 220, width: '100%' }}
+                                                    scrollWheelZoom={false}
+                                                >
+                                                    <TileLayer
+                                                        attribution='&copy; OpenStreetMap contributors'
+                                                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                                                    />
+                                                    <Marker position={mapCenter(lat, lng)}>
+                                                        <Popup>{geoLabel}</Popup>
+                                                    </Marker>
+                                                </MapContainer>
+                                            </div>
                                         </div>
                                     )}
                                             </>

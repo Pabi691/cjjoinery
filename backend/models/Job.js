@@ -18,11 +18,13 @@ const jobSchema = mongoose.Schema(
         endDate: { type: Date },
         deadline: { type: Date }, // Target completion date
         completionTime: { type: Number }, // Actual time taken in hours
+        expectedHours: { type: Number },
         status: {
             type: String,
             enum: ['Scheduled', 'In Progress', 'Completed', 'Cancelled', 'Pending'],
             default: 'Scheduled',
         },
+        priority: { type: String },
         assignedWorkers: [
             {
                 type: mongoose.Schema.Types.ObjectId,
@@ -36,6 +38,12 @@ const jobSchema = mongoose.Schema(
             },
         ],
         materials: [{ type: String }],
+        schedules: [
+            {
+                workerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Worker' },
+                dates: [String]
+            }
+        ],
         dailyLogs: [
             {
                 workerId: { type: mongoose.Schema.Types.Mixed },

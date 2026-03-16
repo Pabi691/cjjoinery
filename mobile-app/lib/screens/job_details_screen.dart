@@ -3,6 +3,8 @@ import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import '../core/theme.dart';
 import '../services/api_service.dart';
 import '../services/session.dart';
@@ -91,17 +93,41 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
     return '${ApiService.baseHost}/uploads/$imageUrl';
   }
 
-  String _mapPreviewUrl(double lat, double lng) {
-    return Uri.https(
-      'staticmap.openstreetmap.de',
-      '/staticmap.php',
-      {
-        'center': '$lat,$lng',
-        'zoom': '15',
-        'size': '600x300',
-        'markers': '$lat,$lng,red-pushpin',
-      },
-    ).toString();
+  Widget _buildInteractiveMap(double lat, double lng) {
+    final point = LatLng(lat, lng);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: FlutterMap(
+        options: MapOptions(
+          initialCenter: point,
+          initialZoom: 15,
+          interactionOptions: const InteractionOptions(
+            flags: InteractiveFlag.all,
+          ),
+        ),
+        children: [
+          TileLayer(
+            urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            subdomains: const ['a', 'b', 'c'],
+            userAgentPackageName: 'cj_joinery_mobile',
+          ),
+          MarkerLayer(
+            markers: [
+              Marker(
+                point: point,
+                width: 40,
+                height: 40,
+                child: const Icon(
+                  Icons.location_on,
+                  color: AppColors.amber,
+                  size: 40,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _pickScheduleStart() async {
@@ -941,28 +967,10 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
                                 ),
                                 if (hasCoords) ...[
                                   const SizedBox(height: 10),
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: Image.network(
-                                      _mapPreviewUrl(lat!, lng!),
-                                      height: 140,
-                                      width: double.infinity,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (context, error, stackTrace) {
-                                        return Container(
-                                          height: 140,
-                                          color: AppColors.surface,
-                                          alignment: Alignment.center,
-                                          child: Text(
-                                            'Map unavailable',
-                                            style: TextStyle(
-                                              color: AppColors.textMuted,
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    ),
+                                  SizedBox(
+                                    height: 160,
+                                    width: double.infinity,
+                                    child: _buildInteractiveMap(lat!, lng!),
                                   ),
                                 ],
                               ],

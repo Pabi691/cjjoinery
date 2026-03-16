@@ -1,26 +1,24 @@
 const asyncHandler = require('express-async-handler');
-const mockData = require('../data/mockData');
+const Invoice = require('../models/Invoice');
 
 // @desc    Get all invoices
 // @route   GET /api/invoices
 // @access  Private
 const getInvoices = asyncHandler(async (req, res) => {
-    // MOCK DATA
-    res.json(mockData.invoices);
+    const invoices = await Invoice.find({}).sort({ createdAt: -1 });
+    res.json(invoices);
 });
 
 // @desc    Get invoice by ID
 // @route   GET /api/invoices/:id
 // @access  Private
 const getInvoiceById = asyncHandler(async (req, res) => {
-    // MOCK DATA
-    const invoice = mockData.invoices.find(i => i._id === req.params.id);
-    if (invoice) {
-        res.json(invoice);
-    } else {
+    const invoice = await Invoice.findById(req.params.id);
+    if (!invoice) {
         res.status(404);
         throw new Error('Invoice not found');
     }
+    res.json(invoice);
 });
 
 // @desc    Create invoice
@@ -28,10 +26,7 @@ const getInvoiceById = asyncHandler(async (req, res) => {
 // @access  Private/Admin
 const createInvoice = asyncHandler(async (req, res) => {
     const { jobId, invoiceNumber, customerName, customerEmail, dueDate, items, totalAmount } = req.body;
-
-    // MOCK DATA
-    const newInvoice = {
-        _id: Date.now().toString(),
+    const newInvoice = await Invoice.create({
         jobId,
         invoiceNumber,
         customerName,
@@ -39,10 +34,9 @@ const createInvoice = asyncHandler(async (req, res) => {
         dueDate,
         items,
         totalAmount,
-        status: 'Sent', // Default
+        status: 'Unpaid',
         payments: []
-    };
-    mockData.invoices.push(newInvoice);
+    });
 
     res.status(201).json(newInvoice);
 });
@@ -52,22 +46,20 @@ const createInvoice = asyncHandler(async (req, res) => {
 // @access  Private
 const updateInvoice = asyncHandler(async (req, res) => {
     const { status, payment } = req.body;
-
-    // MOCK DATA
-    const invoice = mockData.invoices.find(i => i._id === req.params.id);
-
-    if (invoice) {
-        invoice.status = status || invoice.status;
-        if (payment) {
-            if (!invoice.payments) invoice.payments = [];
-            invoice.payments.push(payment);
-        }
-
-        res.json(invoice);
-    } else {
+    const invoice = await Invoice.findById(req.params.id);
+    if (!invoice) {
         res.status(404);
         throw new Error('Invoice not found');
     }
+
+    invoice.status = status || invoice.status;
+    if (payment) {
+        invoice.payments = invoice.payments || [];
+        invoice.payments.push(payment);
+    }
+
+    await invoice.save();
+    res.json(invoice);
 });
 
 module.exports = { getInvoices, getInvoiceById, createInvoice, updateInvoice };

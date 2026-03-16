@@ -1,5 +1,5 @@
 const asyncHandler = require('express-async-handler');
-const mockData = require('../data/mockData');
+const Job = require('../models/Job');
 
 const normalizeJob = (job) => {
     if (!job) return job;
@@ -13,43 +13,37 @@ const normalizeJob = (job) => {
 // @route   GET /api/jobs
 // @access  Private
 const getJobs = asyncHandler(async (req, res) => {
-    // MOCK DATA
-    res.json(mockData.jobs.map(normalizeJob));
+    const jobs = await Job.find({})
+        .populate('customerId', 'name email')
+        .populate('assignedWorkers', 'name')
+        .lean();
+    res.json(jobs.map(normalizeJob));
 });
 
 // @desc    Get job by ID
 // @route   GET /api/jobs/:id
 // @access  Private
 const getJobById = asyncHandler(async (req, res) => {
-    // MOCK DATA
-    const job = mockData.jobs.find(j => j._id === req.params.id);
+    const job = await Job.findById(req.params.id)
+        .populate('customerId', 'name email')
+        .populate('assignedWorkers', 'name');
 
-    if (job) {
-        res.json(normalizeJob(job));
-    } else {
+    if (!job) {
         res.status(404);
         throw new Error('Job not found');
     }
+
+    res.json(normalizeJob(job));
 });
 
 // @desc    Create a job (usually from a quote)
 // @route   POST /api/jobs
 // @access  Private/Admin
 const createJob = asyncHandler(async (req, res) => {
-    const { customerId, quoteId, title, description, startDate, endDate, assignedStaff, materials, expectedHours, assignedWorkers } = req.body;
+    const { customerId, quoteId, title, description, startDate, endDate, assignedStaff, materials, expectedHours, assignedWorkers, priority } = req.body;
 
-    // FIND RELATED DATA
-    const customer = mockData.users.find(u => u._id === customerId);
-
-    let resolvedWorkers = [];
-    if (assignedWorkers && Array.isArray(assignedWorkers)) {
-        resolvedWorkers = mockData.workers.filter(w => assignedWorkers.includes(w._id));
-    }
-
-    // MOCK DATA
-    const newJob = {
-        _id: Date.now().toString(),
-        customerId: customer || { name: 'Unknown', email: 'unknown@example.com' }, // Store full object or fallback
+    const newJob = await Job.create({
+        customerId,
         quoteId,
         title,
         description,
@@ -59,12 +53,15 @@ const createJob = asyncHandler(async (req, res) => {
         assignedStaff,
         materials,
         status: 'Pending',
-        priority: 'Medium',
-        assignedWorkers: resolvedWorkers,
-    };
-    mockData.jobs.push(newJob);
+        priority: priority || 'Medium',
+        assignedWorkers: assignedWorkers || [],
+    });
 
-    res.status(201).json(normalizeJob(newJob));
+    const populated = await Job.findById(newJob._id)
+        .populate('customerId', 'name email')
+        .populate('assignedWorkers', 'name');
+
+    res.status(201).json(normalizeJob(populated));
 });
 
 // @desc    Update job details
@@ -73,40 +70,42 @@ const createJob = asyncHandler(async (req, res) => {
 const updateJob = asyncHandler(async (req, res) => {
     const { title, description, status, deadline, assignedWorkers, progressUpdate, beforeImages, afterImages, expectedHours } = req.body;
 
-    // MOCK DATA
-    const jobIndex = mockData.jobs.findIndex(j => j._id === req.params.id);
-
-    if (jobIndex > -1) {
-        const job = mockData.jobs[jobIndex];
-        job.title = title || job.title;
-        job.description = description || job.description;
-        job.status = status || job.status;
-        job.deadline = deadline || job.deadline; // Note: Schema uses dueDate/endDate, keeping consistent with controller input
-        job.expectedHours = expectedHours || job.expectedHours;
-
-        if (assignedWorkers) {
-            job.assignedWorkers = mockData.workers.filter(w => assignedWorkers.includes(w._id));
-        }
-
-        // Mock update logic for arrays
-        if (progressUpdate) {
-            if (!job.progressUpdates) job.progressUpdates = [];
-            job.progressUpdates.push(progressUpdate);
-        }
-        if (beforeImages) {
-            if (!job.beforeImages) job.beforeImages = [];
-            job.beforeImages = [...job.beforeImages, ...beforeImages];
-        }
-        if (afterImages) {
-            if (!job.afterImages) job.afterImages = [];
-            job.afterImages = [...job.afterImages, ...afterImages];
-        }
-
-        res.json(normalizeJob(job));
-    } else {
+    const job = await Job.findById(req.params.id);
+    if (!job) {
         res.status(404);
         throw new Error('Job not found');
     }
+
+    job.title = title || job.title;
+    job.description = description || job.description;
+    job.status = status || job.status;
+    job.deadline = deadline || job.deadline;
+    job.expectedHours = expectedHours || job.expectedHours;
+
+    if (assignedWorkers) {
+        job.assignedWorkers = assignedWorkers;
+    }
+
+    if (progressUpdate) {
+        job.progressUpdates = job.progressUpdates || [];
+        job.progressUpdates.push(progressUpdate);
+    }
+    if (beforeImages) {
+        job.beforeImages = job.beforeImages || [];
+        job.beforeImages = [...job.beforeImages, ...beforeImages];
+    }
+    if (afterImages) {
+        job.afterImages = job.afterImages || [];
+        job.afterImages = [...job.afterImages, ...afterImages];
+    }
+
+    await job.save();
+
+    const populated = await Job.findById(job._id)
+        .populate('customerId', 'name email')
+        .populate('assignedWorkers', 'name');
+
+    res.json(normalizeJob(populated));
 });
 
 module.exports = { getJobs, getJobById, createJob, updateJob };
