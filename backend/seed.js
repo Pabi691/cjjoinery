@@ -59,9 +59,9 @@ const seedData = async () => {
         if (workers.length === 0) {
             console.log('Seeding Workers...');
             workers = await Worker.insertMany([
-                { name: 'Bob Builder', email: 'bob@cjjoinery.com', phone: '111222333', skills: ['Carpentry', 'Joinery'], hourlyRate: 25, availability: 'Available' },
-                { name: 'Alice Plumber', email: 'alice@cjjoinery.com', phone: '444555666', skills: ['Plumbing'], hourlyRate: 30, availability: 'Busy' },
-                { name: 'Charlie Electrician', email: 'charlie@cjjoinery.com', phone: '777888999', skills: ['Electrical'], hourlyRate: 35, availability: 'Available' },
+                { name: 'Bob Builder', username: 'bob.builder', email: 'bob@cjjoinery.com', password: 'worker123', phone: '111222333', skills: ['Carpentry', 'Joinery'], hourlyRate: 25, availability: 'Available', status: 'Active' },
+                { name: 'Alice Plumber', username: 'alice.plumber', email: 'alice@cjjoinery.com', password: 'worker123', phone: '444555666', skills: ['Plumbing'], hourlyRate: 30, availability: 'Busy', status: 'Active' },
+                { name: 'Charlie Electrician', username: 'charlie.electric', email: 'charlie@cjjoinery.com', password: 'worker123', phone: '777888999', skills: ['Electrical'], hourlyRate: 35, availability: 'Available', status: 'Active' },
             ]);
         }
 
