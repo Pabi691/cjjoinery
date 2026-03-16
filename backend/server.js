@@ -47,10 +47,18 @@ app.get('/', (req, res) => {
 });
 
 app.get('/api/health', (req, res) => {
-    res.json({
+    const report = () => res.json({
         dbState: mongoose.connection.readyState, // 0=disconnected, 1=connected, 2=connecting, 3=disconnecting
         dbName: mongoose.connection.name || null
     });
+
+    if (mongoose.connection.readyState === 1) {
+        return report();
+    }
+
+    connectDB()
+        .then(report)
+        .catch(report);
 });
 
 // Error Handling Middleware
