@@ -10,6 +10,30 @@ const ProjectDetails = () => {
     const [project, setProject] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+    const apiHost = apiBase.replace(/\/api\/?$/, '');
+
+    const resolveImageUrl = (imageUrl) => {
+        if (!imageUrl || imageUrl === 'No image') return '';
+        if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) return imageUrl;
+        if (imageUrl.startsWith('/')) return `${apiHost}${imageUrl}`;
+        return `${apiHost}/uploads/${imageUrl}`;
+    };
+
+    const toNumber = (value) => {
+        const num = Number(value);
+        return Number.isFinite(num) ? num : null;
+    };
+
+    const mapPreviewUrl = (lat, lng) => {
+        const params = new URLSearchParams({
+            center: `${lat},${lng}`,
+            zoom: '15',
+            size: '640x320',
+            markers: `${lat},${lng},red-pushpin`
+        });
+        return `https://staticmap.openstreetmap.de/staticmap.php?${params.toString()}`;
+    };
 
     useEffect(() => {
         const fetchProject = async () => {
@@ -165,6 +189,20 @@ const ProjectDetails = () => {
                         <div className="space-y-4">
                             {project.dailyLogs.map((log) => (
                                 <div key={log._id} className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                                    {(() => {
+                                        const lat = toNumber(log.location?.lat);
+                                        const lng = toNumber(log.location?.lng);
+                                        const hasCoords = lat !== null && lng !== null && (lat !== 0 || lng !== 0);
+                                        const address = log.location?.address;
+                                        const hasAddress = address && address !== 'Could not detect location' && address !== 'No location detected';
+                                        const geoLabel = hasAddress
+                                            ? address
+                                            : hasCoords
+                                                ? `Geo: ${lat.toFixed(6)}, ${lng.toFixed(6)}`
+                                                : 'No location';
+                                        const imageSrc = resolveImageUrl(log.imageUrl);
+                                        return (
+                                            <>
                                     <div className="flex justify-between items-start">
                                         <div>
                                             <div className="text-sm font-semibold text-gray-900 dark:text-white">
@@ -173,15 +211,31 @@ const ProjectDetails = () => {
                                             <div className="text-xs text-gray-500 dark:text-gray-400">{log.date}</div>
                                         </div>
                                         <div className="text-xs text-gray-500 dark:text-gray-400">
-                                            {log.location ? `Geo: ${log.location.lat}, ${log.location.lng}` : 'No geo'}
+                                            {geoLabel}
                                         </div>
                                     </div>
                                     <p className="text-sm text-gray-600 dark:text-gray-300 mt-2">{log.description}</p>
-                                    {log.imageUrl && (
-                                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                                            Image: {log.imageUrl}
+                                    {imageSrc && (
+                                        <div className="mt-3">
+                                            <img
+                                                src={imageSrc}
+                                                alt="Daily log"
+                                                className="w-full max-w-md rounded-md border border-gray-200 dark:border-gray-600"
+                                            />
                                         </div>
                                     )}
+                                    {hasCoords && (
+                                        <div className="mt-3">
+                                            <img
+                                                src={mapPreviewUrl(lat, lng)}
+                                                alt="Location map"
+                                                className="w-full max-w-md rounded-md border border-gray-200 dark:border-gray-600"
+                                            />
+                                        </div>
+                                    )}
+                                            </>
+                                        );
+                                    })()}
                                 </div>
                             ))}
                         </div>

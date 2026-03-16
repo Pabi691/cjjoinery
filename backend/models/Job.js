@@ -36,6 +36,26 @@ const jobSchema = mongoose.Schema(
             },
         ],
         materials: [{ type: String }],
+        dailyLogs: [
+            {
+                workerId: { type: mongoose.Schema.Types.Mixed },
+                workerName: { type: String },
+                date: { type: Date },
+                description: { type: String },
+                imageUrl: { type: String },
+                image: {
+                    data: { type: Buffer, select: false },
+                    contentType: { type: String, select: false },
+                    filename: { type: String, select: false }
+                },
+                location: {
+                    lat: Number,
+                    lng: Number,
+                    address: String
+                },
+                createdAt: { type: Date, default: Date.now }
+            }
+        ],
         progressUpdates: [
             {
                 date: { type: Date, default: Date.now },

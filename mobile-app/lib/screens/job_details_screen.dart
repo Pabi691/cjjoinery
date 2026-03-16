@@ -72,6 +72,38 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
     }
   }
 
+  double? _toDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString());
+  }
+
+  String _resolveImageUrl(String? imageUrl) {
+    if (imageUrl == null || imageUrl.isEmpty || imageUrl == 'No image') {
+      return '';
+    }
+    if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+      return imageUrl;
+    }
+    if (imageUrl.startsWith('/')) {
+      return '${ApiService.baseHost}$imageUrl';
+    }
+    return '${ApiService.baseHost}/uploads/$imageUrl';
+  }
+
+  String _mapPreviewUrl(double lat, double lng) {
+    return Uri.https(
+      'staticmap.openstreetmap.de',
+      '/staticmap.php',
+      {
+        'center': '$lat,$lng',
+        'zoom': '15',
+        'size': '600x300',
+        'markers': '$lat,$lng,red-pushpin',
+      },
+    ).toString();
+  }
+
   Future<void> _pickScheduleStart() async {
     final picked = await showDatePicker(
       context: context,
@@ -220,29 +252,35 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
       // For this demo, we use the filename
       final imageName = _selectedImage?.name ?? 'No image';
 
-      await _api.addDailyLog(
+      final savedLog = await _api.addDailyLog(
         workerId: workerId,
         jobId: _job['_id'].toString(),
         date: DateTime.now().toIso8601String(),
         description: _logDescription.text.trim(),
         imageUrl: imageName,
         location: {
-          'lat': _currentLat ?? 0.0,
-          'lng': _currentLng ?? 0.0,
-          'address': _currentAddress,
+          'lat': _currentLat,
+          'lng': _currentLng,
+          'address': (_currentAddress == 'Could not detect location' ||
+                  _currentAddress == 'No location detected' ||
+                  _currentAddress == 'Detecting location...')
+              ? null
+              : _currentAddress,
         },
+        imageFile: _selectedImage,
       );
       
       final newLog = {
-        'workerName': WorkerSession.worker?['name'] ?? 'Worker',
-        'date': DateTime.now().toIso8601String(),
-        'description': _logDescription.text.trim(),
-        'imageUrl': imageName,
-        'location': {
-          'lat': _currentLat ?? 0.0,
-          'lng': _currentLng ?? 0.0,
+        ...savedLog,
+        'workerName': savedLog['workerName'] ?? WorkerSession.worker?['name'] ?? 'Worker',
+        'date': savedLog['date'] ?? DateTime.now().toIso8601String(),
+        'description': savedLog['description'] ?? _logDescription.text.trim(),
+        'imageUrl': savedLog['imageUrl'] ?? imageName,
+        'location': savedLog['location'] ?? {
+          'lat': _currentLat,
+          'lng': _currentLng,
           'address': _currentAddress,
-        }
+        },
       };
       
       setState(() {
@@ -795,9 +833,19 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
                   if (_dailyLogs.isNotEmpty)
                     ..._dailyLogs.map((log) {
                       final loc = log['location'];
-                      String locString = '-';
-                      if (loc != null) {
-                         locString = loc['address'] ?? '${loc['lat']}, ${loc['lng']}';
+                      final imageUrl = _resolveImageUrl(log['imageUrl']?.toString());
+                      final lat = _toDouble(loc?['lat']);
+                      final lng = _toDouble(loc?['lng']);
+                      final hasCoords = lat != null && lng != null && (lat != 0.0 || lng != 0.0);
+                      final address = loc?['address']?.toString() ?? '';
+                      final hasAddress = address.isNotEmpty &&
+                          address != 'Could not detect location' &&
+                          address != 'No location detected';
+                      String locString = 'No location detected';
+                      if (hasAddress) {
+                        locString = address;
+                      } else if (hasCoords) {
+                        locString = '${lat.toStringAsFixed(6)}, ${lng.toStringAsFixed(6)}';
                       }
                       return Container(
                           margin: const EdgeInsets.only(bottom: 12),
@@ -808,9 +856,9 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
                             children: [
                               Row(
                                 children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 10, vertical: 4),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 10, vertical: 4),
                                     decoration: BoxDecoration(
                                       color: AppColors.amber.withOpacity(0.12),
                                       borderRadius: BorderRadius.circular(8),
@@ -823,36 +871,60 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
                                         fontWeight: FontWeight.w600,
                                       ),
                                     ),
-                                  ),
-                                  const Spacer(),
-                                  if (log['imageUrl'] != null && log['imageUrl'] != 'No image')
-                                    Row(
-                                      children: [
-                                        Icon(Icons.image_rounded, size: 14, color: AppColors.textSecondary),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          log['imageUrl'].toString().length > 15 
-                                              ? '${log['imageUrl'].toString().substring(0, 15)}...' 
-                                              : log['imageUrl'].toString(),
-                                          style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                                        )
-                                      ],
                                     ),
-                                ],
-                              ),
-                              const SizedBox(height: 10),
-                              Text(
-                                log['description']?.toString() ?? '',
-                                style: const TextStyle(
-                                  color: AppColors.textPrimary,
-                                  fontSize: 14,
-                                  height: 1.4,
+                                    const Spacer(),
+                                    if (imageUrl.isNotEmpty)
+                                      Row(
+                                        children: [
+                                          Icon(Icons.image_rounded, size: 14, color: AppColors.textSecondary),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            'Image attached',
+                                            style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                          )
+                                        ],
+                                      ),
+                                  ],
                                 ),
-                              ),
-                              const SizedBox(height: 12),
-                              Row(
-                                children: [
-                                  Icon(Icons.location_on, size: 14, color: AppColors.info),
+                                const SizedBox(height: 10),
+                                Text(
+                                  log['description']?.toString() ?? '',
+                                  style: const TextStyle(
+                                    color: AppColors.textPrimary,
+                                    fontSize: 14,
+                                    height: 1.4,
+                                  ),
+                                ),
+                                if (imageUrl.isNotEmpty) ...[
+                                  const SizedBox(height: 12),
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Image.network(
+                                      imageUrl,
+                                      height: 160,
+                                      width: double.infinity,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, error, stackTrace) {
+                                        return Container(
+                                          height: 160,
+                                          color: AppColors.surface,
+                                          alignment: Alignment.center,
+                                          child: Text(
+                                            'Image unavailable',
+                                            style: TextStyle(
+                                              color: AppColors.textMuted,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ],
+                                const SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    Icon(Icons.location_on, size: 14, color: AppColors.info),
                                   const SizedBox(width: 6),
                                   Expanded(
                                     child: Text(
@@ -862,13 +934,39 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
                                         fontSize: 12,
                                         fontWeight: FontWeight.w500,
                                       ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                if (hasCoords) ...[
+                                  const SizedBox(height: 10),
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Image.network(
+                                      _mapPreviewUrl(lat!, lng!),
+                                      height: 140,
+                                      width: double.infinity,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, error, stackTrace) {
+                                        return Container(
+                                          height: 140,
+                                          color: AppColors.surface,
+                                          alignment: Alignment.center,
+                                          child: Text(
+                                            'Map unavailable',
+                                            style: TextStyle(
+                                              color: AppColors.textMuted,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        );
+                                      },
                                     ),
                                   ),
                                 ],
-                              )
-                            ],
-                          ),
-                        );
+                              ],
+                            ),
+                          );
                     }),
 
                   const SizedBox(height: 40),
