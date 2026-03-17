@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const asyncHandler = require('express-async-handler');
 const User = require('../models/User');
 const mongoose = require('mongoose');
+const connectDB = require('../config/db');
 
 const protect = asyncHandler(async (req, res, next) => {
     let token;
@@ -13,6 +14,9 @@ const protect = asyncHandler(async (req, res, next) => {
         try {
             token = req.headers.authorization.split(' ')[1];
 
+            if (!mongoose.connection || mongoose.connection.readyState !== 1) {
+                await connectDB();
+            }
             if (!mongoose.connection || mongoose.connection.readyState !== 1) {
                 res.status(503);
                 throw new Error('Database not connected');

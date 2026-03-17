@@ -2,8 +2,14 @@ const asyncHandler = require('express-async-handler');
 const mongoose = require('mongoose');
 const User = require('../models/User');
 const generateToken = require('../utils/generateToken');
+const connectDB = require('../config/db');
 
-const canUseDb = () => mongoose.connection && mongoose.connection.readyState === 1;
+const ensureDb = async () => {
+    if (!mongoose.connection || mongoose.connection.readyState !== 1) {
+        await connectDB();
+    }
+    return mongoose.connection && mongoose.connection.readyState === 1;
+};
 
 // @desc    Auth user & get token
 // @route   POST /api/auth/login
@@ -11,7 +17,7 @@ const canUseDb = () => mongoose.connection && mongoose.connection.readyState ===
 const authUser = asyncHandler(async (req, res) => {
     const { email, password } = req.body;
 
-    if (!canUseDb()) {
+    if (!(await ensureDb())) {
         res.status(503);
         throw new Error('Database not connected');
     }
@@ -38,7 +44,7 @@ const authUser = asyncHandler(async (req, res) => {
 const registerUser = asyncHandler(async (req, res) => {
     const { name, email, password, phone, address } = req.body;
 
-    if (!canUseDb()) {
+    if (!(await ensureDb())) {
         res.status(503);
         throw new Error('Database not connected');
     }
@@ -70,7 +76,7 @@ const registerUser = asyncHandler(async (req, res) => {
 // @route   GET /api/auth/users
 // @access  Private
 const getUsers = asyncHandler(async (req, res) => {
-    if (!canUseDb()) {
+    if (!(await ensureDb())) {
         res.status(503);
         throw new Error('Database not connected');
     }

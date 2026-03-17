@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const Job = require('../models/Job');
 const Worker = require('../models/Worker');
+const connectDB = require('../config/db');
 
 const sanitizeWorker = (worker) => {
     if (!worker) return null;
@@ -13,41 +14,49 @@ const sanitizeWorker = (worker) => {
 
 const canUseDb = () => mongoose.connection && mongoose.connection.readyState === 1;
 
+const ensureDb = async () => {
+    if (!canUseDb()) {
+        await connectDB();
+    }
+    return canUseDb();
+};
+
 // @desc    Worker login
 // @route   POST /api/worker/login
 // @access  Public
 const loginWorker = asyncHandler(async (req, res) => {
     const { username, password } = req.body;
-    if (!canUseDb()) {
+    if (!(await ensureDb())) {
         res.status(503);
         throw new Error('Database not connected');
     }
 
-    const worker = await Worker.findOne({
+    const dbWorker = await Worker.findOne({
         $or: [{ username }, { email: username }]
     });
 
-    if (!worker || !worker.password) {
+    if (dbWorker && dbWorker.password) {
+        let matches = false;
+        if (dbWorker.password.startsWith('$2')) {
+            matches = await bcrypt.compare(password, dbWorker.password);
+        } else {
+            matches = dbWorker.password === password;
+        }
+
+        if (matches) {
+            res.json({
+                worker: sanitizeWorker(dbWorker),
+                token: `worker-token-${dbWorker._id}`
+            });
+            return;
+        }
+
         res.status(401);
         throw new Error('Invalid worker credentials');
     }
 
-    let matches = false;
-    if (worker.password.startsWith('$2')) {
-        matches = await bcrypt.compare(password, worker.password);
-    } else {
-        matches = worker.password === password;
-    }
-
-    if (!matches) {
-        res.status(401);
-        throw new Error('Invalid worker credentials');
-    }
-
-    res.json({
-        worker: sanitizeWorker(worker),
-        token: `worker-token-${worker._id}`
-    });
+    res.status(401);
+    throw new Error('Invalid worker credentials');
 });
 
 // @desc    Get jobs for worker (without customer details)
@@ -55,7 +64,7 @@ const loginWorker = asyncHandler(async (req, res) => {
 // @access  Public
 const getWorkerJobs = asyncHandler(async (req, res) => {
     const { workerId } = req.params;
-    if (!canUseDb()) {
+    if (!(await ensureDb())) {
         res.status(503);
         throw new Error('Database not connected');
     }
@@ -63,7 +72,6 @@ const getWorkerJobs = asyncHandler(async (req, res) => {
     const jobs = await Job.find({ assignedWorkers: workerId })
         .populate('assignedWorkers', 'name')
         .lean();
-
     res.json(jobs);
 });
 
@@ -73,7 +81,7 @@ const getWorkerJobs = asyncHandler(async (req, res) => {
 const updateWorkerStatus = asyncHandler(async (req, res) => {
     const { workerId } = req.params;
     const { date, status, note } = req.body;
-    if (!canUseDb()) {
+    if (!(await ensureDb())) {
         res.status(503);
         throw new Error('Database not connected');
     }
@@ -83,7 +91,6 @@ const updateWorkerStatus = asyncHandler(async (req, res) => {
         res.status(404);
         throw new Error('Worker not found');
     }
-
     worker.availability = status || worker.availability;
     worker.statusHistory = worker.statusHistory || [];
     const statusEntry = {
@@ -94,7 +101,6 @@ const updateWorkerStatus = asyncHandler(async (req, res) => {
     };
     worker.statusHistory.unshift(statusEntry);
     await worker.save();
-
     res.json({ worker: sanitizeWorker(worker), statusEntry });
 });
 
@@ -104,7 +110,7 @@ const updateWorkerStatus = asyncHandler(async (req, res) => {
 const scheduleJob = asyncHandler(async (req, res) => {
     const { workerId, jobId } = req.params;
     const { dates } = req.body;
-    if (!canUseDb()) {
+    if (!(await ensureDb())) {
         res.status(503);
         throw new Error('Database not connected');
     }
@@ -114,7 +120,6 @@ const scheduleJob = asyncHandler(async (req, res) => {
         res.status(404);
         throw new Error('Job not found');
     }
-
     job.schedules = job.schedules || [];
     const existing = job.schedules.find(
         s => s.workerId?.toString() === workerId
@@ -175,57 +180,60 @@ const addDailyLog = asyncHandler(async (req, res) => {
         }
         : null;
 
-    const shouldUseDb = canUseDb() && mongoose.Types.ObjectId.isValid(jobId);
-    if (shouldUseDb) {
-        const job = await Job.findById(jobId);
-        if (!job) {
-            res.status(404);
-            throw new Error('Job not found');
-        }
-
-        let workerName = 'Worker';
-        if (mongoose.Types.ObjectId.isValid(workerId)) {
-            const dbWorker = await Worker.findById(workerId).lean();
-            workerName = dbWorker?.name || workerName;
-        }
-
-        const logId = new mongoose.Types.ObjectId();
-        if (imagePayload) {
-            resolvedImageUrl = `/api/worker/jobs/${jobId}/daily-logs/${logId}/image`;
-        }
-
-        const logEntry = {
-            _id: logId,
-            workerId,
-            workerName,
-            date: date ? new Date(date) : new Date(),
-            description,
-            imageUrl: resolvedImageUrl,
-            image: imagePayload || undefined,
-            location: hasLocation ? resolvedLocation : null,
-            createdAt: new Date()
-        };
-
-        job.dailyLogs = job.dailyLogs || [];
-        job.dailyLogs.unshift(logEntry);
-        await job.save();
-
-        createNotification({
-            type: 'daily_log',
-            workerId,
-            workerName,
-            message: `Daily log added for ${job.title}`,
-            details: { jobId, jobTitle: job.title, log: logEntry }
-        });
-
-        const responseLog = { ...logEntry };
-        delete responseLog.image;
-        res.json(responseLog);
-        return;
+    if (!(await ensureDb())) {
+        res.status(503);
+        throw new Error('Database not connected');
     }
 
-    res.status(503);
-    throw new Error('Database not connected');
+    if (!mongoose.Types.ObjectId.isValid(jobId)) {
+        res.status(400);
+        throw new Error('Invalid job id');
+    }
+
+    const job = await Job.findById(jobId);
+    if (!job) {
+        res.status(404);
+        throw new Error('Job not found');
+    }
+
+    let workerName = 'Worker';
+    if (mongoose.Types.ObjectId.isValid(workerId)) {
+        const dbWorker = await Worker.findById(workerId).lean();
+        workerName = dbWorker?.name || workerName;
+    }
+
+    const logId = new mongoose.Types.ObjectId();
+    if (imagePayload) {
+        resolvedImageUrl = `/api/worker/jobs/${jobId}/daily-logs/${logId}/image`;
+    }
+
+    const logEntry = {
+        _id: logId,
+        workerId,
+        workerName,
+        date: date ? new Date(date) : new Date(),
+        description,
+        imageUrl: resolvedImageUrl,
+        image: imagePayload || undefined,
+        location: hasLocation ? resolvedLocation : null,
+        createdAt: new Date()
+    };
+
+    job.dailyLogs = job.dailyLogs || [];
+    job.dailyLogs.unshift(logEntry);
+    await job.save();
+
+    createNotification({
+        type: 'daily_log',
+        workerId,
+        workerName,
+        message: `Daily log added for ${job.title}`,
+        details: { jobId, jobTitle: job.title, log: logEntry }
+    });
+
+    const responseLog = { ...logEntry };
+    delete responseLog.image;
+    res.json(responseLog);
 });
 
 // @desc    Get daily log image
@@ -235,7 +243,12 @@ const getDailyLogImage = asyncHandler(async (req, res) => {
     const { jobId, logId } = req.params;
     let image = null;
 
-    if (canUseDb() && mongoose.Types.ObjectId.isValid(jobId)) {
+    if (!(await ensureDb())) {
+        res.status(503);
+        throw new Error('Database not connected');
+    }
+
+    if (mongoose.Types.ObjectId.isValid(jobId)) {
         const job = await Job.findById(jobId).select('dailyLogs');
         const log = job?.dailyLogs?.id(logId);
         if (log?.image?.data) {
