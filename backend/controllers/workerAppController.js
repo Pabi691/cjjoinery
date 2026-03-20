@@ -3,7 +3,9 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const Job = require('../models/Job');
 const Worker = require('../models/Worker');
+const Notification = require('../models/Notification');
 const connectDB = require('../config/db');
+const mockData = require('../data/mockData');
 
 const sanitizeWorker = (worker) => {
     if (!worker) return null;
@@ -19,6 +21,32 @@ const ensureDb = async () => {
         await connectDB();
     }
     return canUseDb();
+};
+
+const createNotification = async (payload) => {
+    if (!payload) return null;
+    try {
+        if (await ensureDb()) {
+            const created = await Notification.create({
+                read: false,
+                ...payload
+            });
+            return created?.toObject ? created.toObject() : created;
+        }
+    } catch (error) {
+        console.warn('Failed to save notification to DB:', error?.message || error);
+    }
+    if (!Array.isArray(mockData.notifications)) {
+        mockData.notifications = [];
+    }
+    const fallback = {
+        _id: `n${Date.now()}`,
+        read: false,
+        createdAt: new Date().toISOString(),
+        ...payload
+    };
+    mockData.notifications.unshift(fallback);
+    return fallback;
 };
 
 // @desc    Worker login
@@ -223,7 +251,7 @@ const addDailyLog = asyncHandler(async (req, res) => {
     job.dailyLogs.unshift(logEntry);
     await job.save();
 
-    createNotification({
+    await createNotification({
         type: 'daily_log',
         workerId,
         workerName,

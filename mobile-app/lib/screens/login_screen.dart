@@ -13,11 +13,8 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen>
     with SingleTickerProviderStateMixin {
   final _api = ApiService();
-  static const _demoUsername = 'john.carpenter';
-  static const _demoPassword = 'worker123';
-
-  final _emailController = TextEditingController(text: _demoUsername);
-  final _passwordController = TextEditingController(text: _demoPassword);
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
   String _errorMessage = '';
   bool _isLoading = false;
   bool _obscurePassword = true;
