@@ -1,9 +1,9 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, Users, CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import { Calendar, Users, CheckCircle, Clock, AlertCircle, Trash2 } from 'lucide-react';
 import { DateTime } from 'luxon';
 
-const ProjectCard = ({ project, onEdit }) => {
+const ProjectCard = ({ project, onEdit, onDelete }) => {
     const navigate = useNavigate();
 
     const getStatusColor = (status) => {
@@ -65,19 +65,27 @@ const ProjectCard = ({ project, onEdit }) => {
                         </div>
                     )}
                 </div>
-                <div className="flex space-x-2">
+                <div className="flex space-x-2 items-center w-full justify-between">
                     <button
-                        onClick={() => onEdit(project)}
-                        className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                        onClick={(e) => { e.stopPropagation(); onDelete(project); }}
+                        className="text-sm text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 flex items-center gap-1 mr-auto"
                     >
-                        Edit
+                        <Trash2 size={14} /> Delete
                     </button>
-                    <button
-                        onClick={() => navigate(`/projects/${project._id}`)}
-                        className="text-sm text-indigo-600 dark:text-indigo-400 font-medium hover:text-indigo-800 dark:hover:text-indigo-300"
-                    >
-                        View Details
-                    </button>
+                    <div className="flex space-x-2">
+                        <button
+                            onClick={() => onEdit(project)}
+                            className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                        >
+                            Edit
+                        </button>
+                        <button
+                            onClick={() => navigate(`/projects/${project._id}`)}
+                            className="text-sm text-indigo-600 dark:text-indigo-400 font-medium hover:text-indigo-800 dark:hover:text-indigo-300"
+                        >
+                            View Details
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

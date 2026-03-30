@@ -6,6 +6,7 @@ const ProjectForm = ({ project, onSuccess, onCancel }) => {
         title: '',
         description: '',
         status: 'Scheduled',
+        startDate: '',
         deadline: '',
         customerId: '', // Ideally a select dropdown
         assignedWorkers: [] // Ideally a multi-select
@@ -35,6 +36,7 @@ const ProjectForm = ({ project, onSuccess, onCancel }) => {
                 title: project.title,
                 description: project.description,
                 status: project.status,
+                startDate: project.startDate ? project.startDate.split('T')[0] : '',
                 deadline: project.deadline ? project.deadline.split('T')[0] : '',
                 expectedHours: project.expectedHours || '',
                 customerId: project.customerId?._id || project.customerId || '', // Handle populated or ID
@@ -104,7 +106,7 @@ const ProjectForm = ({ project, onSuccess, onCancel }) => {
                 ></textarea>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Status</label>
                     <select
@@ -119,6 +121,16 @@ const ProjectForm = ({ project, onSuccess, onCancel }) => {
                         <option value="Pending">Pending</option>
                         <option value="Cancelled">Cancelled</option>
                     </select>
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Start Date</label>
+                    <input
+                        type="date"
+                        name="startDate"
+                        value={formData.startDate}
+                        onChange={handleChange}
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm p-2"
+                    />
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Deadline</label>

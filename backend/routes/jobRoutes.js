@@ -5,10 +5,11 @@ const {
     getJobById,
     createJob,
     updateJob,
+    deleteJob
 } = require('../controllers/jobController');
 const { protect } = require('../middleware/authMiddleware');
 
 router.route('/').get(protect, getJobs).post(protect, createJob);
-router.route('/:id').get(protect, getJobById).put(protect, updateJob);
+router.route('/:id').get(protect, getJobById).put(protect, updateJob).delete(protect, deleteJob);
 
 module.exports = router;

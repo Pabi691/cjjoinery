@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import axios from '../utils/axiosConfig';
 import Modal from '../components/Modal';
 import WorkerForm from '../components/forms/WorkerForm';
-import { User, Phone, Mail, Hammer, Clock, AlertCircle } from 'lucide-react';
+import { User, Phone, Mail, Hammer, Clock, AlertCircle, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getAvailabilityColor, normalizeWorker } from '../utils/workerStatus';
 
@@ -15,6 +15,9 @@ const Workers = () => {
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingWorker, setEditingWorker] = useState(null);
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [workerToDelete, setWorkerToDelete] = useState(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     const fetchWorkers = async () => {
         setLoading(true);
@@ -45,6 +48,26 @@ const Workers = () => {
     const handleFormSuccess = () => {
         setIsModalOpen(false);
         fetchWorkers();
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!workerToDelete) return;
+        setIsDeleting(true);
+        try {
+            await axios.delete(`/workers/${workerToDelete._id}`);
+            setIsDeleteModalOpen(false);
+            setWorkerToDelete(null);
+            fetchWorkers();
+        } catch (err) {
+            alert(err.response?.data?.message || 'Failed to delete worker');
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    const handleDeleteClick = (worker) => {
+        setWorkerToDelete(worker);
+        setIsDeleteModalOpen(true);
     };
 
     if (loading && workers.length === 0) return (
@@ -141,19 +164,27 @@ const Workers = () => {
                                 )}
                             </div>
 
-                            <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 flex justify-end space-x-2">
+                            <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center">
                                 <button
-                                    onClick={() => handleEditWorker(worker)}
-                                    className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                                    onClick={() => handleDeleteClick(worker)}
+                                    className="text-sm text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 flex items-center gap-1"
                                 >
-                                    Edit
+                                    <Trash2 size={14} /> Delete
                                 </button>
-                                <button
-                                    onClick={() => navigate(`/workers/${worker._id}`)}
-                                    className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300"
-                                >
-                                    View Profile
-                                </button>
+                                <div className="flex space-x-2">
+                                    <button
+                                        onClick={() => handleEditWorker(worker)}
+                                        className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                                    >
+                                        Edit
+                                    </button>
+                                    <button
+                                        onClick={() => navigate(`/workers/${worker._id}`)}
+                                        className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300"
+                                    >
+                                        View Profile
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     ))}
@@ -170,6 +201,46 @@ const Workers = () => {
                     onSuccess={handleFormSuccess}
                     onCancel={() => setIsModalOpen(false)}
                 />
+            </Modal>
+
+            {/* Delete Confirmation Modal */}
+            <Modal
+                isOpen={isDeleteModalOpen}
+                onClose={() => !isDeleting && setIsDeleteModalOpen(false)}
+                title="Confirm Deletion"
+            >
+                <div className="p-2 sm:p-4">
+                    <div className="flex items-center justify-center mb-6">
+                        <div className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 dark:text-red-400">
+                            <Trash2 size={32} />
+                        </div>
+                    </div>
+                    <p className="text-center text-gray-700 dark:text-gray-300 mb-2">
+                        Are you sure you want to delete worker <span className="font-bold text-gray-900 dark:text-white">{workerToDelete?.name}</span>?
+                    </p>
+                    <p className="text-center text-sm text-gray-500 dark:text-gray-400 mb-8">
+                        This action cannot be undone. All associated data will be permanently removed.
+                    </p>
+                    
+                    <div className="flex space-x-3 justify-end mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+                        <button
+                            type="button"
+                            onClick={() => setIsDeleteModalOpen(false)}
+                            disabled={isDeleting}
+                            className="px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleConfirmDelete}
+                            disabled={isDeleting}
+                            className="px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 flex items-center"
+                        >
+                            {isDeleting ? 'Deleting...' : 'Delete Worker'}
+                        </button>
+                    </div>
+                </div>
             </Modal>
         </div>
     );

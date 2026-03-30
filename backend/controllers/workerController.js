@@ -164,4 +164,29 @@ const updateWorker = asyncHandler(async (req, res) => {
     res.json(sanitizeWorker(updated));
 });
 
-module.exports = { getWorkers, getWorkerById, createWorker, updateWorker };
+// @desc    Delete worker
+// @route   DELETE /api/workers/:id
+// @access  Private/Admin
+const deleteWorker = asyncHandler(async (req, res) => {
+    if (!(await ensureDb())) {
+        res.status(503);
+        throw new Error('Database not connected');
+    }
+
+    const worker = await Worker.findById(req.params.id);
+    if (!worker) {
+        res.status(404);
+        throw new Error('Worker not found');
+    }
+
+    // Remove worker from any assigned jobs
+    await Job.updateMany(
+        { assignedWorkers: req.params.id },
+        { $pull: { assignedWorkers: req.params.id } }
+    );
+
+    await worker.deleteOne();
+    res.json({ message: 'Worker deleted successfully' });
+});
+
+module.exports = { getWorkers, getWorkerById, createWorker, updateWorker, deleteWorker };

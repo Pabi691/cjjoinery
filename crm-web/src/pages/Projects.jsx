@@ -3,7 +3,7 @@ import axios from '../utils/axiosConfig';
 import ProjectCard from '../components/ProjectCard';
 import Modal from '../components/Modal';
 import ProjectForm from '../components/forms/ProjectForm';
-import { Plus, Filter } from 'lucide-react';
+import { Plus, Filter, Trash2 } from 'lucide-react';
 
 const Projects = () => {
     const [projects, setProjects] = useState([]);
@@ -14,6 +14,9 @@ const Projects = () => {
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingProject, setEditingProject] = useState(null);
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [projectToDelete, setProjectToDelete] = useState(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     const fetchProjects = async () => {
         setLoading(true);
@@ -44,6 +47,26 @@ const Projects = () => {
     const handleFormSuccess = () => {
         setIsModalOpen(false);
         fetchProjects();
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!projectToDelete) return;
+        setIsDeleting(true);
+        try {
+            await axios.delete(`/jobs/${projectToDelete._id}`);
+            setIsDeleteModalOpen(false);
+            setProjectToDelete(null);
+            fetchProjects();
+        } catch (err) {
+            alert(err.response?.data?.message || 'Failed to delete project');
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    const handleDeleteClick = (project) => {
+        setProjectToDelete(project);
+        setIsDeleteModalOpen(true);
     };
 
     const filteredProjects = filter === 'All'
@@ -121,6 +144,7 @@ const Projects = () => {
                             key={project._id}
                             project={project}
                             onEdit={handleEditProject}
+                            onDelete={handleDeleteClick}
                         />
                     ))}
                 </div>
@@ -136,6 +160,46 @@ const Projects = () => {
                     onSuccess={handleFormSuccess}
                     onCancel={() => setIsModalOpen(false)}
                 />
+            </Modal>
+
+            {/* Delete Confirmation Modal */}
+            <Modal
+                isOpen={isDeleteModalOpen}
+                onClose={() => !isDeleting && setIsDeleteModalOpen(false)}
+                title="Confirm Deletion"
+            >
+                <div className="p-2 sm:p-4">
+                    <div className="flex items-center justify-center mb-6">
+                        <div className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 dark:text-red-400">
+                            <Trash2 size={32} />
+                        </div>
+                    </div>
+                    <p className="text-center text-gray-700 dark:text-gray-300 mb-2">
+                        Are you sure you want to delete project <span className="font-bold text-gray-900 dark:text-white">{projectToDelete?.title}</span>?
+                    </p>
+                    <p className="text-center text-sm text-gray-500 dark:text-gray-400 mb-8">
+                        This action cannot be undone. All associated data will be permanently removed.
+                    </p>
+                    
+                    <div className="flex space-x-3 justify-end mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+                        <button
+                            type="button"
+                            onClick={() => setIsDeleteModalOpen(false)}
+                            disabled={isDeleting}
+                            className="px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleConfirmDelete}
+                            disabled={isDeleting}
+                            className="px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 flex items-center"
+                        >
+                            {isDeleting ? 'Deleting...' : 'Delete Project'}
+                        </button>
+                    </div>
+                </div>
             </Modal>
         </div>
     );

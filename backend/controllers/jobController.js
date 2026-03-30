@@ -293,4 +293,19 @@ const updateJob = asyncHandler(async (req, res) => {
     res.json(normalizeJob(populated));
 });
 
-module.exports = { getJobs, getJobById, createJob, updateJob };
+// @desc    Delete job
+// @route   DELETE /api/jobs/:id
+// @access  Private
+const deleteJob = asyncHandler(async (req, res) => {
+    const job = await Job.findById(req.params.id);
+    
+    if (!job) {
+        res.status(404);
+        throw new Error('Job not found');
+    }
+
+    await job.deleteOne();
+    res.json({ message: 'Job removed' });
+});
+
+module.exports = { getJobs, getJobById, createJob, updateJob, deleteJob };
