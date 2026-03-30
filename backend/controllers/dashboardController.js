@@ -4,6 +4,7 @@ const connectDB = require('../config/db');
 const Job = require('../models/Job');
 const Worker = require('../models/Worker');
 const Quote = require('../models/Quote');
+const { decorateWorker } = require('../utils/workerStatus');
 
 const canUseDb = () => mongoose.connection && mongoose.connection.readyState === 1;
 
@@ -27,12 +28,10 @@ const getDashboardSummary = asyncHandler(async (req, res) => {
         status: 'In Progress'
     });
 
-    const activeWorkersCount = await Worker.countDocuments({
-        $or: [
-            { status: { $in: ['Active', 'Available'] } },
-            { availability: 'Available' }
-        ]
-    });
+    const workers = await Worker.find({}).lean();
+    const activeWorkersCount = workers
+        .map((worker) => decorateWorker(worker))
+        .filter((worker) => worker?.availability !== 'On Leave').length;
 
     const pendingQuotesCount = await Quote.countDocuments({
         status: 'Pending'

@@ -1,8 +1,70 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../core/theme.dart';
 import '../services/api_service.dart';
 import '../services/session.dart';
 import 'job_details_screen.dart';
+
+String _dateKey(DateTime date) => DateFormat('yyyy-MM-dd').format(date);
+
+DateTime _dayOnly(DateTime date) => DateTime(date.year, date.month, date.day);
+
+bool _isPastDate(DateTime date) =>
+    _dayOnly(date).isBefore(_dayOnly(DateTime.now()));
+
+DateTime? _parseStatusDate(dynamic value) {
+  if (value == null) return null;
+  try {
+    return DateTime.parse(value.toString());
+  } catch (_) {
+    return null;
+  }
+}
+
+List<Map<String, dynamic>> _workerStatusHistory(Map<String, dynamic> worker) {
+  final raw = worker['statusHistory'] as List<dynamic>? ?? const [];
+  final history = raw
+      .whereType<Map>()
+      .map((entry) => Map<String, dynamic>.from(entry))
+      .toList();
+
+  history.sort((a, b) {
+    final left = a['date']?.toString() ?? '';
+    final right = b['date']?.toString() ?? '';
+    return right.compareTo(left);
+  });
+
+  return history;
+}
+
+String _effectiveWorkerStatus(Map<String, dynamic> worker, DateTime date) {
+  final targetKey = _dateKey(date);
+  final history = _workerStatusHistory(worker);
+  final todayKey = _dateKey(DateTime.now());
+
+  for (final entry in history) {
+    final entryKey = entry['date']?.toString();
+    if (entryKey == targetKey) {
+      return entry['status']?.toString() ?? 'Available';
+    }
+  }
+
+  if (targetKey == todayKey) {
+    return worker['availability']?.toString() ?? 'Available';
+  }
+
+  return 'Available';
+}
+
+List<Map<String, dynamic>> _upcomingStatusHistory(Map<String, dynamic> worker) {
+  final todayKey = _dateKey(DateTime.now());
+  return _workerStatusHistory(worker)
+      .where((entry) {
+        final entryKey = entry['date']?.toString();
+        return entryKey != null && entryKey.compareTo(todayKey) >= 0;
+      })
+      .toList();
+}
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -164,6 +226,12 @@ class _HomeTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final todayStatus = _effectiveWorkerStatus(worker, DateTime.now());
+    final upcomingDays = List<DateTime>.generate(
+      7,
+      (index) => _dayOnly(DateTime.now()).add(Duration(days: index)),
+    );
+
     return RefreshIndicator(
       color: AppColors.amber,
       backgroundColor: AppColors.surface,
@@ -260,13 +328,14 @@ class _HomeTab extends StatelessWidget {
                       child: _StatCard(
                         icon: Icons.circle,
                         label: 'Status',
-                        value: worker['availability']?.toString() ?? 'Unknown',
-                        color: _statusColor(
-                            worker['availability']?.toString() ?? ''),
+                        value: todayStatus,
+                        color: _statusColor(todayStatus),
                       ),
                     ),
                   ],
                 ),
+                const SizedBox(height: 22),
+                _HomeStatusCalendar(days: upcomingDays, worker: worker),
               ],
             ),
           ),
@@ -384,6 +453,112 @@ class _StatCard extends StatelessWidget {
 // ──────────────────────────────────────────────────
 // JOBS TAB
 // ──────────────────────────────────────────────────
+class _HomeStatusCalendar extends StatelessWidget {
+  const _HomeStatusCalendar({
+    required this.days,
+    required this.worker,
+  });
+
+  final List<DateTime> days;
+  final Map<String, dynamic> worker;
+
+  Color _statusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'available':
+        return AppColors.success;
+      case 'busy':
+        return AppColors.warning;
+      case 'on leave':
+        return AppColors.error;
+      default:
+        return AppColors.textMuted;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: AppDecorations.glass(opacity: 0.08, borderRadius: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Status Calendar',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+              const Spacer(),
+              Text(
+                'Next 7 days',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.textMuted,
+                    ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: days.map((day) {
+              final status = _effectiveWorkerStatus(worker, day);
+              final isToday = _dateKey(day) == _dateKey(DateTime.now());
+
+              return Expanded(
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
+                  decoration: BoxDecoration(
+                    color: _statusColor(status).withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: isToday
+                          ? AppColors.amber
+                          : _statusColor(status).withOpacity(0.2),
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        DateFormat('E').format(day),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppColors.textMuted,
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${day.day}',
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: _statusColor(status),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _JobsTab extends StatelessWidget {
   const _JobsTab({
     required this.jobs,
@@ -473,16 +648,31 @@ class _StatusTab extends StatefulWidget {
 
 class _StatusTabState extends State<_StatusTab> {
   final _api = ApiService();
-  DateTime _selectedDate = DateTime.now();
+  DateTime _selectedDate = _dayOnly(DateTime.now());
+  DateTime _calendarMonth = DateTime(DateTime.now().year, DateTime.now().month);
   String _selectedStatus = 'Available';
   final TextEditingController _noteController = TextEditingController();
   bool _saving = false;
 
+  @override
+  void initState() {
+    super.initState();
+    final worker = WorkerSession.worker ?? {};
+    _selectedStatus = _effectiveWorkerStatus(worker, _selectedDate);
+  }
+
+  @override
+  void dispose() {
+    _noteController.dispose();
+    super.dispose();
+  }
+
   Future<void> _pickDate() async {
+    final today = _dayOnly(DateTime.now());
     final picked = await showDatePicker(
       context: context,
       initialDate: _selectedDate,
-      firstDate: DateTime(2024),
+      firstDate: today,
       lastDate: DateTime(2030),
       builder: (context, child) {
         return Theme(
@@ -499,21 +689,61 @@ class _StatusTabState extends State<_StatusTab> {
       },
     );
     if (picked != null) {
-      setState(() => _selectedDate = picked);
+      final worker = WorkerSession.worker ?? {};
+      final selectedDay = _dayOnly(picked);
+      setState(() {
+        _selectedDate = selectedDay;
+        _calendarMonth = DateTime(selectedDay.year, selectedDay.month);
+        _selectedStatus = _effectiveWorkerStatus(worker, selectedDay);
+      });
     }
   }
 
+  Color _statusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'available':
+        return AppColors.success;
+      case 'busy':
+        return AppColors.warning;
+      case 'on leave':
+        return AppColors.error;
+      default:
+        return AppColors.textMuted;
+    }
+  }
+
+  List<DateTime> _calendarDays() {
+    final firstOfMonth = DateTime(_calendarMonth.year, _calendarMonth.month, 1);
+    final lastOfMonth = DateTime(_calendarMonth.year, _calendarMonth.month + 1, 0);
+    final start = firstOfMonth.subtract(Duration(days: firstOfMonth.weekday - 1));
+    final end = lastOfMonth.add(Duration(days: DateTime.daysPerWeek - lastOfMonth.weekday));
+
+    final days = <DateTime>[];
+    for (var day = start; !day.isAfter(end); day = day.add(const Duration(days: 1))) {
+      days.add(day);
+    }
+    return days;
+  }
+
   Future<void> _saveStatus() async {
+    if (_isPastDate(_selectedDate)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Past dates cannot be updated.')),
+      );
+      return;
+    }
+
     setState(() => _saving = true);
     try {
-      await _api.updateWorkerStatus(
+      final response = await _api.updateWorkerStatus(
         widget.workerId,
         _selectedDate.toIso8601String().substring(0, 10),
         _selectedStatus,
         _noteController.text.trim(),
       );
-      if (WorkerSession.worker != null) {
-        WorkerSession.worker?['availability'] = _selectedStatus;
+      final updatedWorker = response['worker'];
+      if (updatedWorker is Map<String, dynamic>) {
+        WorkerSession.worker = Map<String, dynamic>.from(updatedWorker);
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -532,6 +762,9 @@ class _StatusTabState extends State<_StatusTab> {
 
   @override
   Widget build(BuildContext context) {
+    final worker = WorkerSession.worker ?? {};
+    final calendarDays = _calendarDays();
+
     return ListView(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).padding.bottom + 100,
@@ -687,6 +920,248 @@ class _StatusTabState extends State<_StatusTab> {
                           ),
                   ),
                 ),
+                const SizedBox(height: 24),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface.withOpacity(0.7),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: AppColors.divider.withOpacity(0.35),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.info_outline_rounded,
+                        color: AppColors.amber,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Only today and future dates can be changed. Each saved update affects only that selected date.',
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: AppColors.textMuted,
+                                    height: 1.35,
+                                  ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Text(
+                      'Status Calendar',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: () {
+                        setState(() {
+                          _calendarMonth = DateTime(
+                            _calendarMonth.year,
+                            _calendarMonth.month - 1,
+                          );
+                        });
+                      },
+                      icon: const Icon(Icons.chevron_left_rounded,
+                          color: AppColors.textMuted),
+                    ),
+                    Text(
+                      DateFormat('MMMM yyyy').format(_calendarMonth),
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    IconButton(
+                      onPressed: () {
+                        setState(() {
+                          _calendarMonth = DateTime(
+                            _calendarMonth.year,
+                            _calendarMonth.month + 1,
+                          );
+                        });
+                      },
+                      icon: const Icon(Icons.chevron_right_rounded,
+                          color: AppColors.textMuted),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: const [
+                    Expanded(child: _CalendarWeekday(label: 'Mon')),
+                    Expanded(child: _CalendarWeekday(label: 'Tue')),
+                    Expanded(child: _CalendarWeekday(label: 'Wed')),
+                    Expanded(child: _CalendarWeekday(label: 'Thu')),
+                    Expanded(child: _CalendarWeekday(label: 'Fri')),
+                    Expanded(child: _CalendarWeekday(label: 'Sat')),
+                    Expanded(child: _CalendarWeekday(label: 'Sun')),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: calendarDays.length,
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 7,
+                    mainAxisSpacing: 8,
+                    crossAxisSpacing: 8,
+                    childAspectRatio: 0.9,
+                  ),
+                  itemBuilder: (context, index) {
+                    final day = calendarDays[index];
+                    final status = _effectiveWorkerStatus(worker, day);
+                    final inMonth = day.month == _calendarMonth.month;
+                    final isToday = _dateKey(day) == _dateKey(DateTime.now());
+                    final isSelected = _dateKey(day) == _dateKey(_selectedDate);
+                    final isPast = _isPastDate(day);
+
+                    return GestureDetector(
+                      onTap: isPast
+                          ? null
+                          : () {
+                              setState(() {
+                                _selectedDate = day;
+                                _selectedStatus = status;
+                              });
+                            },
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: _statusColor(status).withOpacity(
+                            isPast ? 0.04 : (inMonth ? 0.14 : 0.06),
+                          ),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: isSelected
+                                ? AppColors.amber
+                                : isToday
+                                ? AppColors.amber
+                                : _statusColor(status).withOpacity(0.18),
+                            width: isSelected || isToday ? 1.4 : 1,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${day.day}',
+                              style: TextStyle(
+                                color: inMonth
+                                    ? (isPast
+                                        ? AppColors.textMuted
+                                        : AppColors.textPrimary)
+                                    : AppColors.textMuted,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const Spacer(),
+                            if (isPast)
+                              const Icon(
+                                Icons.lock_outline_rounded,
+                                size: 12,
+                                color: AppColors.textMuted,
+                              )
+                            else
+                              Text(
+                                status,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  height: 1.1,
+                                  color: _statusColor(status),
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 16),
+                if (_upcomingStatusHistory(worker).isNotEmpty) ...[
+                  Text(
+                    'Upcoming Changes',
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: AppColors.textMuted),
+                  ),
+                  const SizedBox(height: 10),
+                  ..._upcomingStatusHistory(worker).take(4).map((entry) {
+                    final status = entry['status']?.toString() ?? 'Available';
+                    final date = _parseStatusDate(entry['date']) ?? DateTime.now();
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: AppColors.divider.withOpacity(0.4),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 10,
+                            height: 10,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: _statusColor(status),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  status,
+                                  style: const TextStyle(
+                                    color: AppColors.textPrimary,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  DateFormat.yMMMd().format(date),
+                                  style: const TextStyle(
+                                    color: AppColors.textMuted,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if ((entry['note']?.toString() ?? '').isNotEmpty)
+                            SizedBox(
+                              width: 90,
+                              child: Text(
+                                entry['note']?.toString() ?? '',
+                                textAlign: TextAlign.right,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: AppColors.textMuted,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
               ],
             ),
           ),
@@ -699,6 +1174,25 @@ class _StatusTabState extends State<_StatusTab> {
 // ──────────────────────────────────────────────────
 // PROFILE TAB
 // ──────────────────────────────────────────────────
+class _CalendarWeekday extends StatelessWidget {
+  const _CalendarWeekday({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppColors.textMuted,
+              fontWeight: FontWeight.w700,
+            ),
+      ),
+    );
+  }
+}
+
 class _ProfileTab extends StatelessWidget {
   const _ProfileTab({required this.worker});
 
@@ -706,6 +1200,8 @@ class _ProfileTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final todayStatus = _effectiveWorkerStatus(worker, DateTime.now());
+
     return ListView(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).padding.bottom + 100,
@@ -758,7 +1254,7 @@ class _ProfileTab extends StatelessWidget {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  worker['availability']?.toString() ?? 'Unknown',
+                  todayStatus,
                   style: const TextStyle(
                     color: AppColors.amber,
                     fontWeight: FontWeight.w600,
@@ -804,8 +1300,8 @@ class _ProfileTab extends StatelessWidget {
                 _divider(),
                 _ProfileRow(
                   icon: Icons.circle,
-                  label: 'Availability',
-                  value: worker['availability']?.toString() ?? '-',
+                  label: 'Today\'s Status',
+                  value: todayStatus,
                   isLast: true,
                 ),
               ],

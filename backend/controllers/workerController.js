@@ -3,6 +3,11 @@ const mongoose = require('mongoose');
 const connectDB = require('../config/db');
 const Worker = require('../models/Worker');
 const Job = require('../models/Job');
+const {
+    decorateWorker,
+    normalizeDateKey,
+    upsertStatusHistoryEntry
+} = require('../utils/workerStatus');
 
 const ensureDb = async () => {
     if (!mongoose.connection || mongoose.connection.readyState !== 1) {
@@ -13,7 +18,7 @@ const ensureDb = async () => {
 
 const sanitizeWorker = (worker) => {
     if (!worker) return null;
-    const safeWorker = worker.toObject ? worker.toObject() : worker;
+    const safeWorker = decorateWorker(worker);
     delete safeWorker.password;
     return safeWorker;
 };
@@ -27,8 +32,8 @@ const getWorkers = asyncHandler(async (req, res) => {
         throw new Error('Database not connected');
     }
 
-    const workers = await Worker.find({}).select('-password').lean();
-    res.json(workers);
+    const workers = await Worker.find({}).lean();
+    res.json(workers.map(sanitizeWorker));
 });
 
 // @desc    Get worker by ID
@@ -40,7 +45,7 @@ const getWorkerById = asyncHandler(async (req, res) => {
         throw new Error('Database not connected');
     }
 
-    const worker = await Worker.findById(req.params.id).select('-password').lean();
+    const worker = await Worker.findById(req.params.id).lean();
     if (!worker) {
         res.status(404);
         throw new Error('Worker not found');
@@ -50,7 +55,7 @@ const getWorkerById = asyncHandler(async (req, res) => {
         .populate('assignedWorkers', 'name')
         .lean();
 
-    res.json({ ...worker, jobs });
+    res.json({ ...sanitizeWorker(worker), jobs });
 });
 
 // @desc    Create a new worker
@@ -63,6 +68,8 @@ const createWorker = asyncHandler(async (req, res) => {
     }
 
     const { name, email, phone, skills, hourlyRate, availability, username, password, status } = req.body;
+    const resolvedAvailability = availability || 'Available';
+    const todayKey = normalizeDateKey(new Date());
 
     const existing = await Worker.findOne({
         $or: [
@@ -81,10 +88,16 @@ const createWorker = asyncHandler(async (req, res) => {
         phone,
         skills,
         hourlyRate,
-        availability,
+        availability: resolvedAvailability,
         username,
         password,
-        status
+        status,
+        statusHistory: upsertStatusHistoryEntry([], {
+            _id: `sh-${Date.now()}`,
+            date: todayKey,
+            status: resolvedAvailability,
+            note: 'Initial status'
+        })
     });
 
     res.status(201).json(sanitizeWorker(worker));
@@ -128,11 +141,23 @@ const updateWorker = asyncHandler(async (req, res) => {
     worker.phone = phone ?? worker.phone;
     worker.skills = skills ?? worker.skills;
     if (hourlyRate !== undefined) worker.hourlyRate = Number(hourlyRate);
-    worker.availability = availability ?? worker.availability;
+    const nextAvailability = availability ?? worker.availability;
+    const hasAvailabilityChanged =
+        availability !== undefined && nextAvailability !== worker.availability;
+    worker.availability = nextAvailability;
     worker.username = username ?? worker.username;
     worker.status = status ?? worker.status;
     if (password) {
         worker.password = password;
+    }
+
+    if (hasAvailabilityChanged) {
+        worker.statusHistory = upsertStatusHistoryEntry(worker.statusHistory || [], {
+            _id: `sh-${Date.now()}`,
+            date: normalizeDateKey(new Date()),
+            status: nextAvailability,
+            note: 'Updated by admin'
+        });
     }
 
     const updated = await worker.save();

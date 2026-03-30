@@ -7,13 +7,13 @@ const Topbar = () => {
     const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
 
     return (
-        <header className="bg-white dark:bg-gray-800 h-16 shadow-sm flex items-center justify-between px-6 transition-colors duration-300">
-            <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg px-3 py-2 w-64">
-                <Search size={18} className="text-gray-400" />
+        <header className="h-24 flex items-center justify-between px-8 bg-transparent">
+            <div className="flex items-center bg-white/60 dark:bg-gray-800/50 backdrop-blur-md rounded-full px-5 py-3 w-80 border border-white/60 shadow-sm transition-all focus-within:bg-white/90">
+                <Search size={20} className="text-gray-500" />
                 <input
                     type="text"
-                    placeholder="Search..."
-                    className="bg-transparent border-none focus:outline-none ml-2 text-sm text-gray-700 dark:text-gray-200 w-full"
+                    placeholder="Search Dashboard..."
+                    className="bg-transparent border-none focus:outline-none ml-3 text-sm text-gray-800 dark:text-gray-200 w-full placeholder-gray-400"
                 />
             </div>
 

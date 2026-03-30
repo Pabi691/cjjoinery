@@ -147,7 +147,7 @@ const WorkerForm = ({ worker, onSuccess, onCancel }) => {
                     />
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Status</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Today's Status</label>
                     <select
                         name="availability"
                         value={formData.availability}
@@ -158,6 +158,9 @@ const WorkerForm = ({ worker, onSuccess, onCancel }) => {
                         <option value="Busy">Busy</option>
                         <option value="On Leave">On Leave</option>
                     </select>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        This updates the worker&apos;s status for today only.
+                    </p>
                 </div>
             </div>
 

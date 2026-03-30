@@ -17,9 +17,9 @@ const MainLayout = () => {
     ];
 
     return (
-        <div className="flex h-screen bg-gray-100">
+        <div className="flex h-screen bg-transparent">
             {/* Sidebar */}
-            <div className={`bg-slate-900 text-white transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-20'} flex flex-col`}>
+            <div className={`glass-sidebar text-white transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-20'} flex flex-col z-20`}>
                 <div className="p-4 flex items-center justify-between border-b border-slate-700">
                     {isSidebarOpen && <h1 className="text-xl font-bold text-orange-500">CJ Joinery</h1>}
                     <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-1 rounded hover:bg-slate-800">
@@ -57,7 +57,7 @@ const MainLayout = () => {
 
             {/* Main Content */}
             <div className="flex-1 flex flex-col overflow-hidden">
-                <header className="bg-white shadow-sm z-10 p-4 flex justify-between items-center">
+                <header className="glass-header z-10 p-4 flex justify-between items-center sticky top-0">
                     <h2 className="text-xl font-semibold text-gray-800">
                         {navigation.find(item => item.href === location.pathname)?.name || 'Dashboard'}
                     </h2>
@@ -67,7 +67,7 @@ const MainLayout = () => {
                         </div>
                     </div>
                 </header>
-                <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-6">
+                <main className="flex-1 overflow-x-hidden overflow-y-auto bg-transparent p-6">
                     <Outlet />
                 </main>
             </div>

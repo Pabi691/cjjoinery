@@ -19,9 +19,9 @@ const Sidebar = () => {
     };
 
     return (
-        <aside className="bg-white dark:bg-gray-800 w-64 min-h-screen flex flex-col shadow-lg transition-colors duration-300">
-            <div className="h-16 flex items-center justify-center border-b border-gray-200 dark:border-gray-700">
-                <h1 className="text-xl font-bold text-indigo-600 dark:text-indigo-400">CJ Joinery</h1>
+        <aside className="glass-sidebar w-64 h-full flex flex-col transition-all duration-300 z-20 border-r border-gray-200/50 dark:border-white/10">
+            <div className="h-20 flex items-center px-8">
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">CJ Joinery</h1>
             </div>
 
             <nav className="flex-1 px-4 py-6 space-y-2">
@@ -32,9 +32,9 @@ const Sidebar = () => {
                         <Link
                             key={item.path}
                             to={item.path}
-                            className={`flex items-center px-4 py-3 rounded-lg transition-colors duration-200 ${isActive
-                                    ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400'
-                                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                            className={`flex items-center px-4 py-3.5 rounded-2xl backdrop-blur-sm transition-all duration-200 font-medium ${isActive
+                                    ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 shadow-md transform scale-[1.02]'
+                                    : 'text-gray-500 dark:text-gray-400 hover:bg-black/5 dark:hover:bg-white/5'
                                 }`}
                         >
                             <Icon size={20} className="mr-3" />
@@ -44,7 +44,7 @@ const Sidebar = () => {
                 })}
             </nav>
 
-            <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="p-4 mt-auto">
                 <button
                     onClick={handleLogout}
                     className="flex items-center w-full px-4 py-3 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors duration-200"

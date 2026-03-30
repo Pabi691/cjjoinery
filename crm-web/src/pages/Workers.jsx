@@ -4,6 +4,7 @@ import Modal from '../components/Modal';
 import WorkerForm from '../components/forms/WorkerForm';
 import { User, Phone, Mail, Hammer, Clock, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { getAvailabilityColor, normalizeWorker } from '../utils/workerStatus';
 
 const Workers = () => {
     const [workers, setWorkers] = useState([]);
@@ -19,7 +20,7 @@ const Workers = () => {
         setLoading(true);
         try {
             const { data } = await axios.get('/workers');
-            setWorkers(data);
+            setWorkers((data || []).map(normalizeWorker));
             setLoading(false);
         } catch (err) {
             setError('Failed to fetch workers');
@@ -46,31 +47,39 @@ const Workers = () => {
         fetchWorkers();
     };
 
-    const getAvailabilityColor = (status) => {
-        switch (status) {
-            case 'Available': return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';
-            case 'Busy': return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300';
-            case 'On Leave': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300';
-            default: return 'bg-gray-100 text-gray-800';
-        }
-    };
-
-    if (loading && workers.length === 0) return <div className="p-4 text-center text-gray-600 dark:text-gray-400">Loading workers...</div>;
+    if (loading && workers.length === 0) return (
+        <div className="space-y-8">
+            <div className="h-8 w-48 bg-white/40 dark:bg-slate-800/40 rounded-lg animate-pulse"></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {[1, 2, 3, 4, 5, 6].map(i => (
+                    <div key={i} className="glass-panel p-6 rounded-3xl h-40 animate-pulse flex flex-col justify-between">
+                        <div className="flex items-center space-x-4">
+                            <div className="w-12 h-12 rounded-full bg-gray-200/50 dark:bg-slate-700/50"></div>
+                            <div className="space-y-3 flex-1">
+                                <div className="h-4 w-3/4 bg-gray-200/50 dark:bg-slate-700/50 rounded"></div>
+                                <div className="h-3 w-1/2 bg-gray-200/50 dark:bg-slate-700/50 rounded"></div>
+                            </div>
+                        </div>
+                        <div className="h-8 w-24 bg-gray-200/50 dark:bg-slate-700/50 rounded-lg mt-4"></div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
     if (error) return <div className="p-4 text-center text-red-600 dark:text-red-400">{error}</div>;
 
     return (
-        <div>
-            <div className="flex flex-col md:flex-row justify-between items-center mb-6">
+        <div className="p-6">
+            <div className="flex flex-col md:flex-row justify-between items-center mb-8">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Worker Management</h1>
-                    <p className="text-gray-500 dark:text-gray-400 mt-1">Manage your team and their availability</p>
+                    <p className="text-gray-500 font-medium mb-1 dark:text-gray-400">Manage your team and their availability</p>
+                    <h1 className="text-4xl font-bold text-gray-900 dark:text-white tracking-tight">Worker Management</h1>
                 </div>
                 <button
                     onClick={handleCreateWorker}
-                    className="mt-4 md:mt-0 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded inline-flex items-center transition-colors"
+                    className="mt-4 md:mt-0 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl flex items-center gap-2 font-medium shadow-md transition-all hover:-translate-y-0.5"
                 >
-                    <User size={18} className="mr-2" />
-                    <span>Add Worker</span>
+                    <User size={20} /> Add Worker
                 </button>
             </div>
 
@@ -81,18 +90,18 @@ const Workers = () => {
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {workers.map((worker) => (
-                        <div key={worker._id} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-md transition-shadow p-6 border border-gray-100 dark:border-gray-700">
-                            <div className="flex items-center justify-between mb-4">
-                                <div className="flex items-center space-x-3">
-                                    <div className="w-12 h-12 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold text-lg">
+                        <div key={worker._id} className="glass-panel rounded-3xl shadow-sm hover:shadow-lg transition-all hover:-translate-y-1 p-8">
+                            <div className="flex items-center justify-between mb-6 border-b border-gray-100 dark:border-gray-700/50 pb-4">
+                                <div className="flex items-center space-x-4">
+                                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-indigo-900 dark:to-purple-900 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-extrabold text-xl shadow-inner">
                                         {worker.name.charAt(0)}
                                     </div>
                                     <div>
-                                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white">{worker.name}</h3>
-                                        <p className="text-sm text-gray-500 dark:text-gray-400">£{worker.hourlyRate}/hr</p>
+                                        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-0.5">{worker.name}</h3>
+                                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">£{worker.hourlyRate}/hr</p>
                                     </div>
                                 </div>
-                                <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${getAvailabilityColor(worker.availability)}`}>
+                                <span className={`px-3 py-1 rounded-full text-xs font-bold shadow-sm ${getAvailabilityColor(worker.availability)}`}>
                                     {worker.availability}
                                 </span>
                             </div>
@@ -104,11 +113,11 @@ const Workers = () => {
                                 </div>
                                 <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
                                     <User size={16} className="mr-3" />
-                                    <span>Login: {worker.username || 'Not set'}</span>
+                                    <span>Login: {worker.username || worker.email?.split('@')?.[0] || 'Not assigned'}</span>
                                 </div>
                                 <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
                                     <AlertCircle size={16} className="mr-3" />
-                                    <span>Password: {worker.password || 'Not set'}</span>
+                                    <span>Password: Securely stored</span>
                                 </div>
                                 <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
                                     <Phone size={16} className="mr-3" />

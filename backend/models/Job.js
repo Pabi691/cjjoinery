@@ -38,6 +38,18 @@ const jobSchema = mongoose.Schema(
             },
         ],
         materials: [{ type: String }],
+        workCalendar: [
+            {
+                date: { type: String },
+                hours: { type: Number, default: 0 },
+                workerIds: [
+                    {
+                        type: mongoose.Schema.Types.ObjectId,
+                        ref: 'Worker',
+                    },
+                ],
+            }
+        ],
         schedules: [
             {
                 workerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Worker' },

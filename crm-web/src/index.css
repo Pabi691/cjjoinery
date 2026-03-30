@@ -2,6 +2,21 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer utilities {
+    .glass-panel {
+        @apply bg-white/50 dark:bg-gray-800/40 backdrop-blur-xl border border-white/60 dark:border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.04)];
+    }
+    
+    .glass-sidebar {
+        @apply bg-transparent;
+    }
+    
+    .glass-header {
+        @apply bg-transparent;
+    }
+}
+
 body {
-    background-color: #f3f4f6;
+    @apply bg-gradient-to-br from-[#ffecd2] via-[#fcb69f] to-[#a1c4fd] min-h-screen bg-fixed;
+    /* Soft orange to blue gradient matching reference */
 }

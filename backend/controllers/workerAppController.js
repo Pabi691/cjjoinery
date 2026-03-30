@@ -6,10 +6,16 @@ const Worker = require('../models/Worker');
 const Notification = require('../models/Notification');
 const connectDB = require('../config/db');
 const mockData = require('../data/mockData');
+const {
+    decorateWorker,
+    getEffectiveWorkerStatus,
+    normalizeDateKey,
+    upsertStatusHistoryEntry
+} = require('../utils/workerStatus');
 
 const sanitizeWorker = (worker) => {
     if (!worker) return null;
-    const safeWorker = worker.toObject ? worker.toObject() : worker;
+    const safeWorker = decorateWorker(worker);
     delete safeWorker.password;
     return safeWorker;
 };
@@ -72,8 +78,9 @@ const loginWorker = asyncHandler(async (req, res) => {
         }
 
         if (matches) {
+            const safeWorker = sanitizeWorker(dbWorker);
             res.json({
-                worker: sanitizeWorker(dbWorker),
+                worker: safeWorker,
                 token: `worker-token-${dbWorker._id}`
             });
             return;
@@ -119,16 +126,38 @@ const updateWorkerStatus = asyncHandler(async (req, res) => {
         res.status(404);
         throw new Error('Worker not found');
     }
-    worker.availability = status || worker.availability;
-    worker.statusHistory = worker.statusHistory || [];
+
+    const statusDate = normalizeDateKey(date) || normalizeDateKey(new Date());
+    const todayKey = normalizeDateKey(new Date());
+    if (statusDate < todayKey) {
+        res.status(400);
+        throw new Error('Past dates cannot be updated');
+    }
+
     const statusEntry = {
         _id: `sh-${Date.now()}`,
-        date: date || new Date().toISOString().slice(0, 10),
+        date: statusDate,
         status: status || worker.availability,
         note: note || ''
     };
-    worker.statusHistory.unshift(statusEntry);
+
+    worker.statusHistory = upsertStatusHistoryEntry(worker.statusHistory || [], statusEntry);
+    worker.availability = getEffectiveWorkerStatus(worker, new Date());
     await worker.save();
+
+    await createNotification({
+        type: 'status_change',
+        workerId,
+        workerName: worker.name,
+        message: `${worker.name} updated status to ${statusEntry.status}`,
+        details: {
+            date: statusEntry.date,
+            status: statusEntry.status,
+            note: statusEntry.note,
+            effectiveToday: worker.availability
+        }
+    });
+
     res.json({ worker: sanitizeWorker(worker), statusEntry });
 });
 

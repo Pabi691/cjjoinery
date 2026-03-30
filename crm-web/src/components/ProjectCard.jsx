@@ -22,40 +22,40 @@ const ProjectCard = ({ project, onEdit }) => {
     };
 
     return (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-md transition-shadow p-5 border border-gray-100 dark:border-gray-700">
-            <div className="flex justify-between items-start mb-4">
-                <div>
-                    <h3 className="text-lg font-semibold text-gray-800 dark:text-white">{project.title}</h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">{project.description}</p>
+        <div className="glass-panel rounded-3xl shadow-sm hover:shadow-lg transition-all hover:-translate-y-1 p-8">
+            <div className="flex justify-between items-start mb-6 border-b border-gray-100/50 dark:border-gray-700/50 pb-5">
+                <div className="pr-4">
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-1">{project.title}</h3>
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400 line-clamp-2">{project.description}</p>
                 </div>
-                <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(project.status)}`}>
+                <span className={`px-3 py-1 rounded-full text-xs font-bold shadow-sm whitespace-nowrap ${getStatusColor(project.status)}`}>
                     {project.status}
                 </span>
             </div>
 
-            <div className="space-y-3">
-                <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
-                    <Users size={16} className="mr-2" />
+            <div className="space-y-4">
+                <div className="flex items-center text-sm font-medium text-gray-600 dark:text-gray-400">
+                    <Users size={18} className="mr-3 text-indigo-500" />
                     <span>{project.assignedWorkers?.length || 0} Workers Assigned</span>
                 </div>
 
                 {project.deadline && (
-                    <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
-                        <Clock size={16} className="mr-2" />
+                    <div className="flex items-center text-sm font-medium text-gray-600 dark:text-gray-400">
+                        <Clock size={18} className="mr-3 text-indigo-500" />
                         <span>Deadline: {formatDate(project.deadline)}</span>
                     </div>
                 )}
 
-                <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
-                    <CheckCircle size={16} className="mr-2" />
+                <div className="flex items-center text-sm font-medium text-gray-600 dark:text-gray-400">
+                    <CheckCircle size={18} className="mr-3 text-indigo-500" />
                     <span>Customer: {project.customerId?.name || 'Unknown'}</span>
                 </div>
             </div>
 
-            <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center">
+            <div className="mt-8 pt-5 border-t border-gray-100/50 dark:border-gray-700/50 flex justify-between items-center">
                 <div className="flex -space-x-2">
                     {project.assignedWorkers?.map((worker, index) => (
-                        <div key={worker._id || index} className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900 border-2 border-white dark:border-gray-800 flex items-center justify-center text-xs font-bold text-indigo-600 dark:text-indigo-400" title={worker?.name || 'Unknown'}>
+                        <div key={worker._id || index} className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-indigo-900 dark:to-purple-900 border-2 border-white/50 dark:border-gray-800 shadow-inner flex items-center justify-center text-sm font-bold text-indigo-600 dark:text-indigo-400" title={worker?.name || 'Unknown'}>
                             {worker?.name?.charAt(0) || '?'}
                         </div>
                     ))}
