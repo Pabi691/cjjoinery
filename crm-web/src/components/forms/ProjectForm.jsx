@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../../utils/axiosConfig';
+import CustomerForm from './CustomerForm';
+import { Plus } from 'lucide-react';
 
 const ProjectForm = ({ project, onSuccess, onCancel }) => {
     const [formData, setFormData] = useState({
@@ -15,13 +17,14 @@ const ProjectForm = ({ project, onSuccess, onCancel }) => {
     const [customers, setCustomers] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
 
     useEffect(() => {
         const fetchData = async () => {
             try {
                 const [workersRes, customersRes] = await Promise.all([
                     axios.get('/workers'),
-                    axios.get('/auth/users')
+                    axios.get('/customers')
                 ]);
                 setWorkers(workersRes.data);
                 setCustomers(customersRes.data);
@@ -78,6 +81,35 @@ const ProjectForm = ({ project, onSuccess, onCancel }) => {
             setLoading(false);
         }
     };
+
+    if (isCreatingCustomer) {
+        return (
+            <div className="animate-fade-in space-y-4">
+                <div className="flex justify-between items-center pb-2 border-b border-gray-100 dark:border-gray-700">
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-white">Quick Add Customer</h3>
+                    <button 
+                        onClick={() => setIsCreatingCustomer(false)} 
+                        className="text-sm font-medium text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300"
+                    >
+                        Back to Project
+                    </button>
+                </div>
+                <CustomerForm 
+                    onSuccess={(newCustomer) => {
+                        if (newCustomer) {
+                            setCustomers(prev => [...prev, newCustomer]);
+                            setFormData(prev => ({ ...prev, customerId: newCustomer._id }));
+                        } else {
+                            // Fallback if not returned properly
+                            axios.get('/customers').then(res => setCustomers(res.data));
+                        }
+                        setIsCreatingCustomer(false);
+                    }}
+                    onCancel={() => setIsCreatingCustomer(false)}
+                />
+            </div>
+        );
+    }
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -156,20 +188,31 @@ const ProjectForm = ({ project, onSuccess, onCancel }) => {
             </div>
 
             <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Customer</label>
-                <select
-                    name="customerId"
-                    value={formData.customerId}
-                    onChange={handleChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm p-2"
-                >
-                    <option value="">Select Customer</option>
-                    {customers.map(customer => (
-                        <option key={customer._id} value={customer._id}>
-                            {customer.name} ({customer.email})
-                        </option>
-                    ))}
-                </select>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Customer</label>
+                <div className="flex space-x-2">
+                    <select
+                        name="customerId"
+                        value={formData.customerId}
+                        onChange={handleChange}
+                        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm p-2"
+                    >
+                        <option value="">Select Customer</option>
+                        {customers.map(customer => (
+                            <option key={customer._id} value={customer._id}>
+                                {customer.name} ({customer.email})
+                            </option>
+                        ))}
+                    </select>
+                    <button
+                        type="button"
+                        onClick={() => setIsCreatingCustomer(true)}
+                        className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+                        title="Add New Customer"
+                    >
+                        <Plus size={16} />
+                        <span className="sr-only">Add</span>
+                    </button>
+                </div>
             </div>
 
             <div>

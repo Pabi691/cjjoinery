@@ -41,6 +41,7 @@ app.use('/api/workers', require('./routes/workerRoutes'));
 app.use('/api/dashboard', require('./routes/dashboardRoutes'));
 app.use('/api/worker', require('./routes/workerAppRoutes'));
 app.use('/api/notifications', require('./routes/notificationRoutes'));
+app.use('/api/customers', require('./routes/customerRoutes'));
 
 app.get('/', (req, res) => {
     res.send('API is running...');

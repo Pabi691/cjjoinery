@@ -8,6 +8,7 @@ import Projects from './pages/Projects';
 import ProjectDetails from './pages/ProjectDetails';
 import Workers from './pages/Workers';
 import WorkerProfile from './pages/WorkerProfile';
+import Customers from './pages/Customers';
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
         <Route path="projects/:id" element={<ProjectDetails />} />
         <Route path="workers" element={<Workers />} />
         <Route path="workers/:id" element={<WorkerProfile />} />
+        <Route path="customers" element={<Customers />} />
         <Route path="invoices" element={<div className="p-4 text-gray-800 dark:text-white">Invoices Management (Coming Soon)</div>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
