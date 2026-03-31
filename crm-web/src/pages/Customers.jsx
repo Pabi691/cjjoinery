@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import axios from '../utils/axiosConfig';
 import Modal from '../components/Modal';
 import CustomerForm from '../components/forms/CustomerForm';
-import { UserPlus, Mail, Phone, MapPin, Trash2, Edit2, Archive, Briefcase } from 'lucide-react';
+import { UserPlus, Mail, Phone, MapPin, Trash2, Edit } from 'lucide-react';
 
 const Customers = () => {
     const [customers, setCustomers] = useState([]);
@@ -155,7 +155,7 @@ const Customers = () => {
                                     onClick={() => handleEditCustomer(customer)}
                                     className="text-sm text-indigo-600 dark:text-indigo-400 font-medium flex items-center gap-1 hover:text-indigo-800 dark:hover:text-indigo-300"
                                 >
-                                    <Edit2 size={14} /> Edit
+                                    <Edit size={14} /> Edit
                                 </button>
                             </div>
                         </div>

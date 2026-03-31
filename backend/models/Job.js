@@ -10,7 +10,6 @@ const jobSchema = mongoose.Schema(
         quoteId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Quote',
-            required: true,
         },
         title: { type: String, required: true },
         description: { type: String },
