@@ -139,7 +139,13 @@ const Customers = () => {
                                     </div>
                                     <div className="flex items-start text-sm text-gray-600 dark:text-gray-400">
                                         <MapPin size={16} className="mr-3 text-indigo-500 mt-0.5 flex-shrink-0" />
-                                        <span className="line-clamp-2">{customer.address || 'No address provided'}</span>
+                                        <span className="line-clamp-2">
+                                            {customer.address 
+                                                ? (typeof customer.address === 'object' 
+                                                    ? Object.values(customer.address).filter(Boolean).join(', ') 
+                                                    : customer.address)
+                                                : 'No address provided'}
+                                        </span>
                                     </div>
                                 </div>
                             </div>

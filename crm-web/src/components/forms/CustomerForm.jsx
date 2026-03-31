@@ -17,7 +17,11 @@ const CustomerForm = ({ customer, onSuccess, onCancel }) => {
                 name: customer.name || '',
                 email: customer.email || '',
                 phone: customer.phone || '',
-                address: customer.address || ''
+                address: customer.address 
+                    ? (typeof customer.address === 'object' 
+                        ? Object.values(customer.address).filter(Boolean).join(', ') 
+                        : customer.address) 
+                    : ''
             });
         }
     }, [customer]);

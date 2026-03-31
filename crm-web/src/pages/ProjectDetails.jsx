@@ -248,43 +248,45 @@ const ProjectDetails = () => {
     };
 
     const updateSelectedDateEntry = (updater) => {
-        setProject((prev) => {
-            if (!prev) return prev;
+        const existingEntry = project.workCalendar?.find((entry) => entry.date === selectedDate) || {
+            date: selectedDate,
+            hours: 0,
+            workerIds: []
+        };
 
-            const existingEntry = prev.workCalendar?.find((entry) => entry.date === selectedDate) || {
-                date: selectedDate,
-                hours: 0,
-                workerIds: []
-            };
+        const nextRawEntry = updater({
+            ...existingEntry,
+            workerIds: [...(existingEntry.workerIds || [])]
+        });
 
-            const nextRawEntry = updater({
-                ...existingEntry,
-                workerIds: [...(existingEntry.workerIds || [])]
-            });
+        const normalizedEntry = normalizeWorkCalendar([{
+            ...nextRawEntry,
+            date: selectedDate
+        }])[0] || {
+            date: selectedDate,
+            hours: 0,
+            workerIds: []
+        };
 
-            const normalizedEntry = normalizeWorkCalendar([{
-                ...nextRawEntry,
-                date: selectedDate
-            }])[0] || {
-                date: selectedDate,
-                hours: 0,
-                workerIds: []
-            };
+        const nextCalendar = [
+            ...(project.workCalendar || []).filter((entry) => entry.date !== selectedDate),
+            ...(normalizedEntry.hours > 0 || normalizedEntry.workerIds.length > 0
+                ? [normalizedEntry]
+                : [])
+        ];
 
-            const nextCalendar = [
-                ...(prev.workCalendar || []).filter((entry) => entry.date !== selectedDate),
-                ...(normalizedEntry.hours > 0 || normalizedEntry.workerIds.length > 0
-                    ? [normalizedEntry]
-                    : [])
-            ];
+        const normalizedCalendar = normalizeWorkCalendar(nextCalendar);
+        const newTotal = getTotalPlannedHours(normalizedCalendar);
+        const currentTotal = getTotalPlannedHours(project.workCalendar || []);
 
-            const normalizedCalendar = normalizeWorkCalendar(nextCalendar);
+        if (project.expectedHours && newTotal > project.expectedHours && newTotal > currentTotal) {
+            setSaveMessage(`Error: Planned Hours (${newTotal}h) cannot exceed Expected Time (${project.expectedHours}h).`);
+            return;
+        }
 
-            return {
-                ...prev,
-                workCalendar: normalizedCalendar,
-                expectedHours: getTotalPlannedHours(normalizedCalendar)
-            };
+        setProject({
+            ...project,
+            workCalendar: normalizedCalendar
         });
         setSaveMessage('');
     };
@@ -310,7 +312,6 @@ const ProjectDetails = () => {
             const payload = {
                 startDate: project.startDate ? normalizeDateKey(project.startDate) : null,
                 deadline: project.deadline ? normalizeDateKey(project.deadline) : null,
-                expectedHours: getTotalPlannedHours(project.workCalendar || []),
                 workCalendar: normalizeWorkCalendar(project.workCalendar || [])
             };
 
@@ -665,7 +666,7 @@ const ProjectDetails = () => {
 
                             {saveMessage && (
                                 <div className={`mt-4 rounded-2xl px-4 py-3 text-sm font-medium ${
-                                    saveMessage.includes('Failed')
+                                    saveMessage.includes('Failed') || saveMessage.includes('Error')
                                         ? 'bg-rose-50 text-rose-700 dark:bg-rose-900/20 dark:text-rose-300'
                                         : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300'
                                 }`}>
@@ -701,7 +702,7 @@ const ProjectDetails = () => {
                                 </div>
                                 <div className="flex items-center text-gray-700 dark:text-gray-300 font-medium">
                                     <Clock size={18} className="mr-3 text-indigo-500" />
-                                    <span>Expected Time: {totalPlannedHours} hours</span>
+                                    <span>Expected Time: {project.expectedHours || 0} hours</span>
                                 </div>
                                 <div className="flex items-center text-gray-700 dark:text-gray-300 font-medium">
                                     <Users size={18} className="mr-3 text-indigo-500" />

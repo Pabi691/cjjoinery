@@ -21,7 +21,7 @@ class ErrorBoundary extends React.Component {
         <div style={{ padding: '20px', background: 'red', color: 'white' }}>
           <h1>Component Crashed</h1>
           <pre>{this.state.error && this.state.error.toString()}</pre>
-          <pre style={{ fontSize: '10px' }}>{this.state.errorInfo.componentStack}</pre>
+          <pre style={{ fontSize: '10px' }}>{this.state.errorInfo?.componentStack}</pre>
         </div>
       );
     }

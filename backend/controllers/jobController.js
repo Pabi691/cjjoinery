@@ -266,7 +266,11 @@ const updateJob = asyncHandler(async (req, res) => {
         const normalizedCalendar = nextWorkCalendar;
         job.workCalendar = normalizedCalendar;
         job.schedules = buildSchedulesFromWorkCalendar(normalizedCalendar);
-        job.expectedHours = expectedHours ?? getTotalPlannedHours(normalizedCalendar);
+        if (expectedHours !== undefined) {
+            job.expectedHours = expectedHours;
+        } else if (job.expectedHours == null) {
+            job.expectedHours = getTotalPlannedHours(normalizedCalendar);
+        }
     } else if (expectedHours !== undefined) {
         job.expectedHours = expectedHours;
     }

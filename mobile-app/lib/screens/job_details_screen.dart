@@ -21,12 +21,11 @@ class JobDetailsScreen extends StatefulWidget {
 class _JobDetailsScreenState extends State<JobDetailsScreen> {
   final _api = ApiService();
   late Map<String, dynamic> _job;
-  bool _savingSchedule = false;
   bool _savingLog = false;
   bool _gettingLocation = false;
 
-  DateTime _scheduleStart = DateTime.now();
-  int _scheduleDays = 3;
+  DateTime _selectedDate = DateTime.now();
+  late DateTime _calendarMonth;
 
   final TextEditingController _logDescription = TextEditingController();
   
@@ -40,6 +39,37 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
   void initState() {
     super.initState();
     _job = Map<String, dynamic>.from(widget.job);
+    _selectedDate = _findFirstActiveDate();
+    _calendarMonth = DateTime(_selectedDate.year, _selectedDate.month, 1);
+  }
+
+  DateTime _findFirstActiveDate() {
+    // Try workCalendar dates first (sorted)
+    final workCal = _job['workCalendar'] as List<dynamic>? ?? [];
+    final activeDates = <String>[];
+    for (final entry in workCal) {
+      final dateStr = entry['date']?.toString() ?? '';
+      final hours = (entry['hours'] is num) ? (entry['hours'] as num).toDouble() : double.tryParse(entry['hours']?.toString() ?? '') ?? 0;
+      final workers = entry['workerIds'] as List<dynamic>? ?? [];
+      if (dateStr.isNotEmpty && (hours > 0 || workers.isNotEmpty)) {
+        activeDates.add(dateStr);
+      }
+    }
+    activeDates.sort();
+    if (activeDates.isNotEmpty) {
+      final parsed = DateTime.tryParse(activeDates.first);
+      if (parsed != null) return parsed;
+    }
+
+    // Fallback to project startDate
+    final startStr = _job['startDate']?.toString();
+    if (startStr != null && startStr.isNotEmpty) {
+      final parsed = DateTime.tryParse(startStr);
+      if (parsed != null) return parsed;
+    }
+
+    // Final fallback to today
+    return DateTime.now();
   }
 
   @override
@@ -50,6 +80,41 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
 
   List<dynamic> get _dailyLogs => (_job['dailyLogs'] as List<dynamic>? ?? []);
   List<dynamic> get _schedules => (_job['schedules'] as List<dynamic>? ?? []);
+
+  String _toIsoDateStr(DateTime date) {
+    return "${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
+  }
+
+  bool _isDayActive(DateTime day) {
+    final isoDate = _toIsoDateStr(day);
+    
+    final workCal = _job['workCalendar'] as List<dynamic>? ?? [];
+    bool inWorkCal = workCal.any((e) {
+      if (e['date'] != null && e['date'].toString().startsWith(isoDate)) {
+        final hours = _toDouble(e['hours']) ?? 0.0;
+        final workers = e['workerIds'] as List<dynamic>? ?? [];
+        return hours > 0 || workers.isNotEmpty;
+      }
+      return false;
+    });
+
+    if (inWorkCal) return true;
+
+    bool inLogs = _dailyLogs.any((log) {
+      final logDateStr = log['date']?.toString() ?? '';
+      return logDateStr.startsWith(isoDate);
+    });
+
+    return inLogs;
+  }
+
+  List<dynamic> get _selectedDateLogs {
+    final selectedIso = _toIsoDateStr(_selectedDate);
+    return _dailyLogs.where((log) {
+      final logDateStr = log['date']?.toString() ?? '';
+      return logDateStr.startsWith(selectedIso);
+    }).toList();
+  }
 
   Color _statusColor(String status) {
     switch (status.toLowerCase()) {
@@ -130,67 +195,7 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
     );
   }
 
-  Future<void> _pickScheduleStart() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _scheduleStart,
-      firstDate: DateTime(2024),
-      lastDate: DateTime(2030),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.dark(
-              primary: AppColors.amber,
-              onPrimary: AppColors.darkNavy,
-              surface: AppColors.surface,
-              onSurface: AppColors.textPrimary,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-    if (picked != null) setState(() => _scheduleStart = picked);
-  }
 
-  List<String> _buildScheduleDates() {
-    return List.generate(_scheduleDays, (index) {
-      final date = _scheduleStart.add(Duration(days: index));
-      return date.toIso8601String().substring(0, 10);
-    });
-  }
-
-  Future<void> _saveSchedule() async {
-    final workerId = WorkerSession.worker?['_id']?.toString();
-    if (workerId == null) return;
-    setState(() => _savingSchedule = true);
-    final dates = _buildScheduleDates();
-    try {
-      await _api.scheduleJob(workerId, _job['_id'].toString(), dates);
-      final updatedSchedules = List<Map<String, dynamic>>.from(_schedules);
-      final existingIndex =
-          updatedSchedules.indexWhere((s) => s['workerId'] == workerId);
-      if (existingIndex >= 0) {
-        updatedSchedules[existingIndex]['dates'] = dates;
-      } else {
-        updatedSchedules.add({'workerId': workerId, 'dates': dates});
-      }
-      setState(() {
-        _job['schedules'] = updatedSchedules;
-      });
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Schedule saved and admin notified.')),
-      );
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to save schedule.')),
-      );
-    } finally {
-      if (mounted) setState(() => _savingSchedule = false);
-    }
-  }
 
   Future<void> _pickImage(ImageSource source) async {
     final picker = ImagePicker();
@@ -281,7 +286,7 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
       final savedLog = await _api.addDailyLog(
         workerId: workerId,
         jobId: _job['_id'].toString(),
-        date: DateTime.now().toIso8601String(),
+        date: _selectedDate.toIso8601String(),
         description: _logDescription.text.trim(),
         imageUrl: imageName,
         location: {
@@ -299,7 +304,7 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
       final newLog = {
         ...savedLog,
         'workerName': savedLog['workerName'] ?? WorkerSession.worker?['name'] ?? 'Worker',
-        'date': savedLog['date'] ?? DateTime.now().toIso8601String(),
+        'date': savedLog['date'] ?? _selectedDate.toIso8601String(),
         'description': savedLog['description'] ?? _logDescription.text.trim(),
         'imageUrl': savedLog['imageUrl'] ?? imageName,
         'location': savedLog['location'] ?? {
@@ -376,7 +381,7 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
         slivers: [
           // Gradient App Bar
           SliverAppBar(
-            expandedHeight: 160,
+            expandedHeight: 180,
             pinned: true,
             backgroundColor: AppColors.navy,
             leading: GestureDetector(
@@ -492,190 +497,281 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
 
                   const SizedBox(height: 28),
 
-                  // Schedule section
+                  // ── Interactive Calendar ──
                   _SectionHeader(
-                    icon: Icons.event_note_rounded,
-                    title: 'Schedule Work',
+                    icon: Icons.calendar_month_rounded,
+                    title: 'Work Calendar',
                   ),
                   const SizedBox(height: 14),
                   Container(
-                    padding: const EdgeInsets.all(20),
+                    padding: const EdgeInsets.all(16),
                     decoration:
                         AppDecorations.glass(opacity: 0.08, borderRadius: 18),
                     child: Column(
                       children: [
-                        GestureDetector(
-                          onTap: _pickScheduleStart,
-                          child: Container(
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              color: AppColors.surface,
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                  color: AppColors.divider.withOpacity(0.5)),
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.amber.withOpacity(0.12),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: const Icon(
-                                      Icons.calendar_today_rounded,
-                                      color: AppColors.amber,
-                                      size: 18),
-                                ),
-                                const SizedBox(width: 12),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Start Date',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodySmall
-                                          ?.copyWith(
-                                              color: AppColors.textMuted),
-                                    ),
-                                    Text(
-                                      DateFormat.yMMMd().format(_scheduleStart),
-                                      style: const TextStyle(
-                                        color: AppColors.textPrimary,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const Spacer(),
-                                const Icon(Icons.chevron_right_rounded,
-                                    color: AppColors.textMuted),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 14),
+                        // Month navigation
                         Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              'Duration',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodyMedium
-                                  ?.copyWith(color: AppColors.textSecondary),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
+                            GestureDetector(
+                              onTap: () => setState(() {
+                                _calendarMonth = DateTime(
+                                    _calendarMonth.year,
+                                    _calendarMonth.month - 1,
+                                    1);
+                              }),
                               child: Container(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 14),
+                                padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
                                   color: AppColors.surface,
-                                  borderRadius: BorderRadius.circular(12),
+                                  borderRadius: BorderRadius.circular(10),
                                   border: Border.all(
                                       color:
-                                          AppColors.divider.withOpacity(0.5)),
+                                          AppColors.divider.withOpacity(0.4)),
                                 ),
-                                child: DropdownButtonHideUnderline(
-                                  child: DropdownButton<int>(
-                                    value: _scheduleDays,
-                                    isExpanded: true,
-                                    dropdownColor: AppColors.surface,
-                                    style: const TextStyle(
-                                      color: AppColors.textPrimary,
-                                      fontSize: 15,
-                                    ),
-                                    items: List.generate(
-                                      5,
-                                      (i) => DropdownMenuItem(
-                                        value: i + 1,
-                                        child: Text(
-                                            '${i + 1} day${i > 0 ? 's' : ''}'),
-                                      ),
-                                    ),
-                                    onChanged: (value) => setState(
-                                        () => _scheduleDays = value ?? 3),
-                                  ),
+                                child: const Icon(Icons.chevron_left_rounded,
+                                    color: AppColors.textPrimary, size: 20),
+                              ),
+                            ),
+                            Text(
+                              DateFormat.yMMMM().format(_calendarMonth),
+                              style: const TextStyle(
+                                color: AppColors.textPrimary,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 16,
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: () => setState(() {
+                                _calendarMonth = DateTime(
+                                    _calendarMonth.year,
+                                    _calendarMonth.month + 1,
+                                    1);
+                              }),
+                              child: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surface,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                      color:
+                                          AppColors.divider.withOpacity(0.4)),
                                 ),
+                                child: const Icon(Icons.chevron_right_rounded,
+                                    color: AppColors.textPrimary, size: 20),
                               ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 16),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 50,
-                          child: ElevatedButton(
-                            onPressed: _savingSchedule ? null : _saveSchedule,
-                            child: _savingSchedule
-                                ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2.5,
-                                      color: AppColors.darkNavy,
+
+                        // Day-of-week headers
+                        Row(
+                          children: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+                              .map((d) => Expanded(
+                                    child: Center(
+                                      child: Text(
+                                        d,
+                                        style: const TextStyle(
+                                          color: AppColors.textMuted,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                          letterSpacing: 0.5,
+                                        ),
+                                      ),
                                     ),
-                                  )
-                                : const Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(Icons.save_rounded, size: 18),
-                                      SizedBox(width: 8),
-                                      Text('Save Schedule'),
-                                    ],
-                                  ),
-                          ),
+                                  ))
+                              .toList(),
                         ),
+                        const SizedBox(height: 8),
+
+                        // Calendar grid
+                        Builder(builder: (context) {
+                          final firstOfMonth = DateTime(
+                              _calendarMonth.year, _calendarMonth.month, 1);
+                          // Monday = 1, Sunday = 7
+                          final startWeekday = firstOfMonth.weekday; // 1-7
+                          final daysInMonth = DateTime(
+                                  _calendarMonth.year,
+                                  _calendarMonth.month + 1,
+                                  0)
+                              .day;
+                          final leadingBlanks = startWeekday - 1;
+                          final totalCells = leadingBlanks + daysInMonth;
+                          final rows = (totalCells / 7).ceil();
+
+                          return Column(
+                            children: List.generate(rows, (rowIndex) {
+                              return Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 2),
+                                child: Row(
+                                  children:
+                                      List.generate(7, (colIndex) {
+                                    final cellIndex = rowIndex * 7 + colIndex;
+                                    final dayNumber =
+                                        cellIndex - leadingBlanks + 1;
+
+                                    if (dayNumber < 1 ||
+                                        dayNumber > daysInMonth) {
+                                      return const Expanded(
+                                          child: SizedBox(height: 46));
+                                    }
+
+                                    final day = DateTime(
+                                        _calendarMonth.year,
+                                        _calendarMonth.month,
+                                        dayNumber);
+                                    final isSelected =
+                                        _toIsoDateStr(day) ==
+                                            _toIsoDateStr(_selectedDate);
+                                    final isToday =
+                                        _toIsoDateStr(day) ==
+                                            _toIsoDateStr(DateTime.now());
+                                    final isActive = _isDayActive(day);
+
+                                    return Expanded(
+                                      child: GestureDetector(
+                                        onTap: isActive
+                                            ? () => setState(() {
+                                                  _selectedDate = day;
+                                                })
+                                            : null,
+                                        child: AnimatedContainer(
+                                          duration: const Duration(
+                                              milliseconds: 200),
+                                          height: 46,
+                                          margin: const EdgeInsets.all(2),
+                                          decoration: BoxDecoration(
+                                            color: isSelected
+                                                ? AppColors.amber
+                                                : isToday
+                                                    ? AppColors.amber
+                                                        .withOpacity(0.12)
+                                                    : Colors.transparent,
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                            border: isToday && !isSelected
+                                                ? Border.all(
+                                                    color: AppColors.amber
+                                                        .withOpacity(0.5),
+                                                    width: 1.5)
+                                                : null,
+                                          ),
+                                          child: Opacity(
+                                            opacity: isActive ? 1.0 : 0.3,
+                                            child: Column(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              Text(
+                                                '$dayNumber',
+                                                style: TextStyle(
+                                                  color: isSelected
+                                                      ? AppColors.darkNavy
+                                                      : AppColors.textPrimary,
+                                                  fontWeight: isSelected ||
+                                                          isToday
+                                                      ? FontWeight.w700
+                                                      : FontWeight.w500,
+                                                  fontSize: 14,
+                                                ),
+                                              ),
+                                              if (isActive && !isSelected)
+                                                Container(
+                                                  margin:
+                                                      const EdgeInsets.only(
+                                                          top: 3),
+                                                  width: 5,
+                                                  height: 5,
+                                                  decoration: BoxDecoration(
+                                                    color: AppColors.amber,
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                ),
+                                              if (isActive && isSelected)
+                                                Container(
+                                                  margin:
+                                                      const EdgeInsets.only(
+                                                          top: 3),
+                                                  width: 5,
+                                                  height: 5,
+                                                  decoration: BoxDecoration(
+                                                    color: AppColors.darkNavy,
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  }),
+                                ),
+                              );
+                            }),
+                          );
+                        }),
                       ],
                     ),
                   ),
 
-                  // Existing schedules
-                  if (_schedules.isNotEmpty) ...[
-                    const SizedBox(height: 14),
-                    ..._schedules.map((schedule) {
-                      final dates = (schedule['dates'] as List<dynamic>? ?? [])
-                          .join(', ');
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: AppColors.info.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                              color: AppColors.info.withOpacity(0.2)),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.check_circle_rounded,
-                                color: AppColors.info, size: 18),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                dates,
-                                style: const TextStyle(
-                                  color: AppColors.info,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }),
-                  ],
-
                   const SizedBox(height: 28),
 
-                  // Daily log section
+                  // ── Daily Log for Selected Date ──
                   _SectionHeader(
                     icon: Icons.edit_note_rounded,
-                    title: 'Daily Log',
+                    title: 'Log for ${DateFormat.yMMMd().format(_selectedDate)}',
                   ),
                   const SizedBox(height: 14),
+
+                  // Only allow submission for today
+                  if (_toIsoDateStr(_selectedDate) != _toIsoDateStr(DateTime.now()))
+                    Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration:
+                          AppDecorations.glass(opacity: 0.08, borderRadius: 18),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: AppColors.warning.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(Icons.lock_clock_rounded,
+                                color: AppColors.warning, size: 22),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Log Submission Locked',
+                                  style: TextStyle(
+                                    color: AppColors.textPrimary,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'You can only submit daily logs for today (${DateFormat.yMMMd().format(DateTime.now())})',
+                                  style: const TextStyle(
+                                    color: AppColors.textMuted,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                  if (_toIsoDateStr(_selectedDate) == _toIsoDateStr(DateTime.now()))
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration:
@@ -688,7 +784,7 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
                           style: const TextStyle(
                               color: AppColors.textPrimary, fontSize: 15),
                           decoration: AppDecorations.inputDecoration(
-                            label: 'What was completed today?',
+                            label: 'What was completed on this day?',
                             prefixIcon: Icons.description_outlined,
                           ),
                           maxLines: 3,
@@ -826,14 +922,14 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
 
                   const SizedBox(height: 28),
 
-                  // Previous logs
+                  // ── Logs for selected date ──
                   _SectionHeader(
                     icon: Icons.history_rounded,
-                    title: 'Previous Logs',
+                    title: 'Logs on ${DateFormat.yMMMd().format(_selectedDate)}',
                   ),
                   const SizedBox(height: 14),
 
-                  if (_dailyLogs.isEmpty)
+                  if (_selectedDateLogs.isEmpty)
                     Container(
                       padding: const EdgeInsets.all(32),
                       decoration: AppDecorations.glass(
@@ -846,7 +942,7 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
                                 color: AppColors.textMuted.withOpacity(0.5)),
                             const SizedBox(height: 10),
                             Text(
-                              'No logs submitted yet',
+                              'No logs for this date',
                               style: Theme.of(context)
                                   .textTheme
                                   .bodyMedium
@@ -857,8 +953,8 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
                       ),
                     ),
 
-                  if (_dailyLogs.isNotEmpty)
-                    ..._dailyLogs.map((log) {
+                  if (_selectedDateLogs.isNotEmpty)
+                    ..._selectedDateLogs.map((log) {
                       final loc = log['location'];
                       final imageUrl = _resolveImageUrl(log['imageUrl']?.toString());
                       final lat = _toDouble(loc?['lat']);
@@ -891,7 +987,7 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: Text(
-                                      _formatDate(log['date']?.toString()),
+                                      log['workerName']?.toString() ?? 'Worker',
                                       style: const TextStyle(
                                         color: AppColors.amber,
                                         fontSize: 11,
