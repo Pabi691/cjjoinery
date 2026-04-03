@@ -322,11 +322,59 @@ const getDailyLogImage = asyncHandler(async (req, res) => {
     res.send(image.data);
 });
 
+// @desc    Worker check-in for today's job
+// @route   POST /api/worker/:workerId/check-in
+// @access  Public
+const checkInWorker = asyncHandler(async (req, res) => {
+    const { workerId } = req.params;
+    const { jobId } = req.body;
+
+    if (!(await ensureDb())) {
+        res.status(503);
+        throw new Error('Database not connected');
+    }
+
+    const job = await Job.findById(jobId);
+    if (!job) {
+        res.status(404);
+        throw new Error('Job not found');
+    }
+
+    const todayKey = normalizeDateKey(new Date());
+    job.workCalendar = job.workCalendar || [];
+
+    const entryIndex = job.workCalendar.findIndex(e => e.date === todayKey);
+    if (entryIndex >= 0) {
+        const existing = (job.workCalendar[entryIndex].workerIds || []).map(id => id.toString());
+        if (!existing.includes(workerId)) {
+            job.workCalendar[entryIndex].workerIds.push(workerId);
+        }
+    } else {
+        job.workCalendar.push({ date: todayKey, hours: 0, workerIds: [workerId] });
+    }
+
+    job.markModified('workCalendar');
+    await job.save();
+
+    const worker = await Worker.findById(workerId).lean();
+
+    await createNotification({
+        type: 'check_in',
+        workerId,
+        workerName: worker?.name || 'Worker',
+        message: `${worker?.name || 'Worker'} checked in for ${job.title}`,
+        details: { jobId, jobTitle: job.title, date: todayKey }
+    });
+
+    res.json({ success: true, date: todayKey, jobId, jobTitle: job.title });
+});
+
 module.exports = {
     loginWorker,
     getWorkerJobs,
     updateWorkerStatus,
     scheduleJob,
     addDailyLog,
-    getDailyLogImage
+    getDailyLogImage,
+    checkInWorker
 };

@@ -209,7 +209,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 // ──────────────────────────────────────────────────
 // HOME TAB
 // ──────────────────────────────────────────────────
-class _HomeTab extends StatelessWidget {
+class _HomeTab extends StatefulWidget {
   const _HomeTab({
     required this.worker,
     required this.jobs,
@@ -225,17 +225,133 @@ class _HomeTab extends StatelessWidget {
   final Future<void> Function() onRefresh;
 
   @override
+  State<_HomeTab> createState() => _HomeTabState();
+}
+
+class _HomeTabState extends State<_HomeTab> {
+  final _api = ApiService();
+  // jobId -> checked-in state
+  final Map<String, bool> _checkedIn = {};
+  final Map<String, bool> _checkingIn = {};
+
+  String _todayKey() => DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+  /// Jobs where this worker has a workCalendar entry for today
+  List<dynamic> get _todayJobs {
+    final workerId = widget.worker['_id']?.toString() ?? '';
+    final today = _todayKey();
+    return widget.jobs.where((job) {
+      final wc = job['workCalendar'] as List<dynamic>? ?? [];
+      return wc.any((e) {
+        if (e['date']?.toString().startsWith(today) != true) return false;
+        final ids = (e['workerIds'] as List<dynamic>? ?? []).map((id) => id.toString());
+        return ids.contains(workerId);
+      });
+    }).toList();
+  }
+
+  /// In-progress jobs assigned to this worker (shown when no calendar entry)
+  List<dynamic> get _inProgressJobs {
+    final workerId = widget.worker['_id']?.toString() ?? '';
+    return widget.jobs.where((job) {
+      final status = job['status']?.toString() ?? '';
+      final workers = (job['assignedWorkers'] as List<dynamic>? ?? []);
+      final assigned = workers.any((w) {
+        final id = (w is Map) ? w['_id']?.toString() : w.toString();
+        return id == workerId;
+      });
+      return status == 'In Progress' && assigned;
+    }).toList();
+  }
+
+  double _todayHours(Map<String, dynamic> job) {
+    final today = _todayKey();
+    final wc = job['workCalendar'] as List<dynamic>? ?? [];
+    final entry = wc.firstWhere(
+      (e) => e['date']?.toString().startsWith(today) == true,
+      orElse: () => null,
+    );
+    if (entry != null) {
+      final h = entry['hours'];
+      if (h is num) return h.toDouble();
+    }
+    final wh = widget.worker['workHoursPerDay'];
+    if (wh is num) return wh.toDouble();
+    return 8.0;
+  }
+
+  bool _isCheckedInToday(Map<String, dynamic> job) {
+    final jobId = job['_id']?.toString() ?? '';
+    if (_checkedIn.containsKey(jobId)) return _checkedIn[jobId]!;
+    final workerId = widget.worker['_id']?.toString() ?? '';
+    final today = _todayKey();
+    final wc = job['workCalendar'] as List<dynamic>? ?? [];
+    return wc.any((e) {
+      if (e['date']?.toString().startsWith(today) != true) return false;
+      final ids = (e['workerIds'] as List<dynamic>? ?? []).map((id) => id.toString());
+      return ids.contains(workerId);
+    });
+  }
+
+  Future<void> _checkIn(Map<String, dynamic> job) async {
+    final jobId = job['_id']?.toString() ?? '';
+    final workerId = widget.worker['_id']?.toString();
+    if (workerId == null || jobId.isEmpty) return;
+    setState(() => _checkingIn[jobId] = true);
+    try {
+      await _api.checkInWorker(workerId, jobId);
+      setState(() => _checkedIn[jobId] = true);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Checked in for "${job['title']}"'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Check-in failed: ${e.toString().replaceFirst('Exception: ', '')}')),
+      );
+    } finally {
+      if (mounted) setState(() => _checkingIn[jobId] = false);
+    }
+  }
+
+  Color _statusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'available':
+        return AppColors.success;
+      case 'busy':
+        return AppColors.warning;
+      case 'on leave':
+        return AppColors.error;
+      default:
+        return AppColors.textMuted;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final worker = widget.worker;
+    final jobs = widget.jobs;
+    final loading = widget.loading;
+    final error = widget.error;
+
     final todayStatus = _effectiveWorkerStatus(worker, DateTime.now());
     final upcomingDays = List<DateTime>.generate(
       7,
       (index) => _dayOnly(DateTime.now()).add(Duration(days: index)),
     );
 
+    // Decide which jobs to show in "Today's Work"
+    final todayJobs = _todayJobs;
+    final showJobs = todayJobs.isNotEmpty ? todayJobs : _inProgressJobs;
+
     return RefreshIndicator(
       color: AppColors.amber,
       backgroundColor: AppColors.surface,
-      onRefresh: onRefresh,
+      onRefresh: widget.onRefresh,
       child: ListView(
         padding: EdgeInsets.only(
           bottom: MediaQuery.of(context).padding.bottom + 100,
@@ -244,9 +360,7 @@ class _HomeTab extends StatelessWidget {
           // Hero header
           Container(
             padding: const EdgeInsets.fromLTRB(24, 56, 24, 32),
-            decoration: const BoxDecoration(
-              gradient: AppGradients.hero,
-            ),
+            decoration: const BoxDecoration(gradient: AppGradients.hero),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -259,10 +373,7 @@ class _HomeTab extends StatelessWidget {
                         shape: BoxShape.circle,
                         gradient: AppGradients.accent,
                         boxShadow: [
-                          BoxShadow(
-                            color: AppColors.amber.withOpacity(0.3),
-                            blurRadius: 12,
-                          ),
+                          BoxShadow(color: AppColors.amber.withOpacity(0.3), blurRadius: 12),
                         ],
                       ),
                       child: Center(
@@ -283,28 +394,35 @@ class _HomeTab extends StatelessWidget {
                         children: [
                           Text(
                             'Welcome Back 👋',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyMedium
-                                ?.copyWith(color: AppColors.textMuted),
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.textMuted),
                           ),
                           const SizedBox(height: 2),
                           Text(
                             worker['name']?.toString() ?? 'Worker',
-                            style: Theme.of(context)
-                                .textTheme
-                                .headlineMedium
-                                ?.copyWith(fontSize: 20),
+                            style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontSize: 20),
                           ),
+                          const SizedBox(height: 4),
+                          // Today's work hours summary
+                          if (showJobs.isNotEmpty)
+                            Text(
+                              showJobs.map((j) {
+                                final h = _todayHours(j as Map<String, dynamic>);
+                                return '${j['title']} · ${h.toStringAsFixed(h.truncateToDouble() == h ? 0 : 1)}h';
+                              }).join('  •  '),
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: AppColors.amber.withOpacity(0.85),
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                         ],
                       ),
                     ),
                     Container(
                       padding: const EdgeInsets.all(10),
-                      decoration: AppDecorations.glass(
-                        opacity: 0.08,
-                        borderRadius: 12,
-                      ),
+                      decoration: AppDecorations.glass(opacity: 0.08, borderRadius: 12),
                       child: const Icon(Icons.notifications_none_rounded,
                           color: AppColors.textSecondary, size: 22),
                     ),
@@ -340,23 +458,176 @@ class _HomeTab extends StatelessWidget {
             ),
           ),
 
+          // ── Today's Work ──
+          if (showJobs.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
+              child: Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppColors.success,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text("Today's Work", style: Theme.of(context).textTheme.titleLarge),
+                ],
+              ),
+            ),
+            ...showJobs.map((rawJob) {
+              final job = rawJob as Map<String, dynamic>;
+              final jobId = job['_id']?.toString() ?? '';
+              final hours = _todayHours(job);
+              final checkedIn = _isCheckedInToday(job);
+              final checkingIn = _checkingIn[jobId] ?? false;
+              return Container(
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: checkedIn
+                        ? AppColors.success.withOpacity(0.4)
+                        : AppColors.divider.withOpacity(0.3),
+                  ),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 8, offset: const Offset(0, 2)),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFF59E0B), Color(0xFFF97316)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          hours.toStringAsFixed(hours.truncateToDouble() == hours ? 0 : 1),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            job['title']?.toString() ?? 'Job',
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${hours.toStringAsFixed(hours.truncateToDouble() == hours ? 0 : 1)} hrs scheduled today',
+                            style: const TextStyle(
+                              color: AppColors.textMuted,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    if (checkedIn)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: AppColors.success.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.success.withOpacity(0.3)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: const [
+                            Icon(Icons.check_circle_rounded, color: AppColors.success, size: 16),
+                            SizedBox(width: 4),
+                            Text(
+                              'Checked In',
+                              style: TextStyle(
+                                color: AppColors.success,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      GestureDetector(
+                        onTap: checkingIn ? null : () => _checkIn(job),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFFF59E0B), Color(0xFFF97316)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.amber.withOpacity(0.3),
+                                blurRadius: 8,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: checkingIn
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text(
+                                  'I Am In',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            }),
+          ],
+
           // Upcoming Jobs section
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Upcoming Jobs',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
+                Text('Upcoming Jobs', style: Theme.of(context).textTheme.titleLarge),
                 if (jobs.length > 3)
                   TextButton(
                     onPressed: () {},
-                    child: const Text(
-                      'See All',
-                      style: TextStyle(color: AppColors.amber, fontSize: 13),
-                    ),
+                    child: const Text('See All', style: TextStyle(color: AppColors.amber, fontSize: 13)),
                   ),
               ],
             ),
@@ -365,12 +636,9 @@ class _HomeTab extends StatelessWidget {
           if (loading)
             const Padding(
               padding: EdgeInsets.all(32),
-              child: Center(
-                child: CircularProgressIndicator(color: AppColors.amber),
-              ),
+              child: Center(child: CircularProgressIndicator(color: AppColors.amber)),
             ),
-          if (!loading && error.isNotEmpty)
-            _ErrorBanner(message: error),
+          if (!loading && error.isNotEmpty) _ErrorBanner(message: error),
           if (!loading && error.isEmpty && jobs.isEmpty)
             _EmptyState(
               icon: Icons.work_off_rounded,
@@ -382,19 +650,6 @@ class _HomeTab extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  Color _statusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'available':
-        return AppColors.success;
-      case 'busy':
-        return AppColors.warning;
-      case 'on leave':
-        return AppColors.error;
-      default:
-        return AppColors.textMuted;
-    }
   }
 }
 

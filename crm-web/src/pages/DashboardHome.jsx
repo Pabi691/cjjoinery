@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
-import { Briefcase, Users, DollarSign, Clock, MapPin, ArrowUpRight, CalendarDays, Activity, FileText, CheckCircle2, Circle, Zap } from 'lucide-react';
+import { Briefcase, Users, DollarSign, Clock, MapPin, ArrowUpRight, CalendarDays, Activity, FileText, CheckCircle2, Circle, Zap, Radio } from 'lucide-react';
 import { DateTime } from 'luxon';
 import axios from '../utils/axiosConfig';
 import { normalizeWorker } from '../utils/workerStatus';
@@ -34,13 +35,15 @@ const SectionHeader = ({ icon: Icon, title, accent }) => (
 );
 
 const DashboardHome = () => {
+    const navigate = useNavigate();
     const [stats, setStats] = useState({
         activeProjects: 0,
         activeWorkers: 0,
         pendingQuotes: 0,
         totalRevenue: 0,
         recentProjects: [],
-        monthlyRevenue: []
+        monthlyRevenue: [],
+        runningProjects: []
     });
     const [loading, setLoading] = useState(true);
     const [jobs, setJobs] = useState([]);
@@ -180,6 +183,68 @@ const DashboardHome = () => {
                     );
                 })}
             </div>
+
+            {/* Live Today — Running Projects & Check-ins */}
+            {stats.runningProjects?.length > 0 && (
+                <div className="glass-panel rounded-3xl p-6 shadow-sm">
+                    <div className="flex items-center gap-3 mb-5">
+                        <div className="w-9 h-9 rounded-xl flex items-center justify-center shadow-sm bg-gradient-to-br from-rose-500 to-pink-400">
+                            <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse block"></span>
+                        </div>
+                        <h2 className="text-base font-bold text-gray-800 dark:text-white tracking-tight">Live Today</h2>
+                        <span className="ml-auto text-xs font-semibold text-rose-500 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/20 px-2.5 py-1 rounded-full">{stats.runningProjects.length} running</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                        {stats.runningProjects.map((project) => {
+                            const checkedIn = project.checkedInToday?.length || 0;
+                            const total = project.assignedWorkers?.length || 0;
+                            return (
+                                <div
+                                    key={project._id}
+                                    onClick={() => navigate(`/projects/${project._id}`)}
+                                    className="relative overflow-hidden bg-white/60 dark:bg-white/5 border border-white/60 dark:border-white/10 rounded-2xl p-4 hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer group"
+                                >
+                                    {/* Top accent bar */}
+                                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-rose-500 to-pink-400 rounded-t-2xl"></div>
+                                    <div className="flex items-start justify-between gap-2 mt-1 mb-3">
+                                        <p className="text-sm font-bold text-gray-900 dark:text-white truncate pr-1">{project.title}</p>
+                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 whitespace-nowrap flex-shrink-0">In Progress</span>
+                                    </div>
+                                    {/* Progress bar */}
+                                    <div className="mb-3">
+                                        <div className="flex justify-between text-[11px] text-gray-500 dark:text-gray-400 mb-1">
+                                            <span>{checkedIn} on site today</span>
+                                            <span>{total} assigned</span>
+                                        </div>
+                                        <div className="h-1.5 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
+                                            <div
+                                                className="h-full rounded-full bg-gradient-to-r from-rose-500 to-pink-400 transition-all"
+                                                style={{ width: total > 0 ? `${Math.round((checkedIn / total) * 100)}%` : '0%' }}
+                                            ></div>
+                                        </div>
+                                    </div>
+                                    {/* Checked-in worker avatars */}
+                                    {checkedIn > 0 ? (
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                            {project.checkedInToday.slice(0, 4).map((w) => (
+                                                <span key={w._id} className="flex items-center gap-1 text-[11px] bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full font-semibold">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span>
+                                                    {w.name}
+                                                </span>
+                                            ))}
+                                            {checkedIn > 4 && (
+                                                <span className="text-[11px] text-gray-400">+{checkedIn - 4} more</span>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <p className="text-[11px] text-gray-400 dark:text-gray-500 italic">No check-ins yet today</p>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
 
             {/* Revenue Chart + Recent Projects */}
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">

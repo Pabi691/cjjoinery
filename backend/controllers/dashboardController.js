@@ -48,6 +48,26 @@ const getDashboardSummary = asyncHandler(async (req, res) => {
         .limit(5)
         .lean();
 
+    const todayKey = new Date().toISOString().split('T')[0];
+    const runningJobs = await Job.find({ status: 'In Progress' })
+        .populate('assignedWorkers', 'name')
+        .lean();
+    const runningProjects = runningJobs.map(job => {
+        const todayEntry = (job.workCalendar || []).find(e => e.date === todayKey);
+        const checkedInIds = (todayEntry?.workerIds || []).map(id => id.toString());
+        const checkedInToday = (job.assignedWorkers || []).filter(w =>
+            checkedInIds.includes(w._id.toString())
+        );
+        return {
+            _id: job._id,
+            title: job.title,
+            status: job.status,
+            assignedWorkers: job.assignedWorkers || [],
+            checkedInToday,
+            todayHours: todayEntry?.hours || 0
+        };
+    });
+
     const now = new Date();
     const startDate = new Date(now.getFullYear(), now.getMonth() - 5, 1);
     const monthSeed = [];
@@ -95,7 +115,8 @@ const getDashboardSummary = asyncHandler(async (req, res) => {
         pendingQuotes: pendingQuotesCount,
         totalRevenue,
         recentProjects,
-        monthlyRevenue
+        monthlyRevenue,
+        runningProjects
     });
 });
 

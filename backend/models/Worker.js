@@ -31,6 +31,10 @@ const workerSchema = mongoose.Schema(
             required: true,
             default: 0,
         },
+        workHoursPerDay: {
+            type: Number,
+            default: 8,
+        },
         status: {
             type: String,
         },

@@ -87,25 +87,43 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
 
   bool _isDayActive(DateTime day) {
     final isoDate = _toIsoDateStr(day);
-    
+    final workerId = WorkerSession.worker?['_id']?.toString() ?? '';
+
+    // Check workCalendar: day is active only if this worker is assigned
     final workCal = _job['workCalendar'] as List<dynamic>? ?? [];
-    bool inWorkCal = workCal.any((e) {
-      if (e['date'] != null && e['date'].toString().startsWith(isoDate)) {
-        final hours = _toDouble(e['hours']) ?? 0.0;
-        final workers = e['workerIds'] as List<dynamic>? ?? [];
-        return hours > 0 || workers.isNotEmpty;
-      }
-      return false;
+    final workerInCal = workCal.any((e) {
+      if (e['date'] == null || !e['date'].toString().startsWith(isoDate)) return false;
+      final ids = (e['workerIds'] as List<dynamic>? ?? []).map((id) => id.toString());
+      return ids.contains(workerId);
     });
+    if (workerInCal) return true;
 
-    if (inWorkCal) return true;
-
-    bool inLogs = _dailyLogs.any((log) {
-      final logDateStr = log['date']?.toString() ?? '';
-      return logDateStr.startsWith(isoDate);
+    // Check schedules: this worker's scheduled dates
+    final schedules = _job['schedules'] as List<dynamic>? ?? [];
+    final workerInSchedule = schedules.any((s) {
+      final sid = (s['workerId'] ?? '').toString();
+      if (sid != workerId) return false;
+      final dates = s['dates'] as List<dynamic>? ?? [];
+      return dates.any((d) => d.toString().startsWith(isoDate));
     });
+    if (workerInSchedule) return true;
 
-    return inLogs;
+    // If neither workCalendar entries nor schedules exist for this worker at all,
+    // fall back to checking daily logs (backwards compat for older jobs)
+    final hasWorkerData = workCal.any((e) {
+          final ids = (e['workerIds'] as List<dynamic>? ?? []).map((id) => id.toString());
+          return ids.contains(workerId);
+        }) ||
+        schedules.any((s) => (s['workerId'] ?? '').toString() == workerId);
+
+    if (!hasWorkerData) {
+      return _dailyLogs.any((log) {
+        final logDateStr = log['date']?.toString() ?? '';
+        return logDateStr.startsWith(isoDate);
+      });
+    }
+
+    return false;
   }
 
   List<dynamic> get _selectedDateLogs {

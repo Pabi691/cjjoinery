@@ -67,7 +67,7 @@ const createWorker = asyncHandler(async (req, res) => {
         throw new Error('Database not connected');
     }
 
-    const { name, email, phone, skills, hourlyRate, availability, username, password, status } = req.body;
+    const { name, email, phone, skills, hourlyRate, workHoursPerDay, availability, username, password, status } = req.body;
     const resolvedAvailability = availability || 'Available';
     const todayKey = normalizeDateKey(new Date());
 
@@ -88,6 +88,7 @@ const createWorker = asyncHandler(async (req, res) => {
         phone,
         skills,
         hourlyRate,
+        workHoursPerDay: workHoursPerDay !== undefined ? Number(workHoursPerDay) : 8,
         availability: resolvedAvailability,
         username,
         password,
@@ -118,7 +119,7 @@ const updateWorker = asyncHandler(async (req, res) => {
         throw new Error('Worker not found');
     }
 
-    const { name, email, phone, skills, hourlyRate, availability, username, password, status } = req.body;
+    const { name, email, phone, skills, hourlyRate, workHoursPerDay, availability, username, password, status } = req.body;
 
     if (email && email !== worker.email) {
         const emailExists = await Worker.findOne({ email });
@@ -141,6 +142,7 @@ const updateWorker = asyncHandler(async (req, res) => {
     worker.phone = phone ?? worker.phone;
     worker.skills = skills ?? worker.skills;
     if (hourlyRate !== undefined) worker.hourlyRate = Number(hourlyRate);
+    if (workHoursPerDay !== undefined) worker.workHoursPerDay = Number(workHoursPerDay);
     const nextAvailability = availability ?? worker.availability;
     const hasAvailabilityChanged =
         availability !== undefined && nextAvailability !== worker.availability;
