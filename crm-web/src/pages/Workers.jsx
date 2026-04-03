@@ -1,18 +1,25 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import axios from '../utils/axiosConfig';
 import Modal from '../components/Modal';
 import WorkerForm from '../components/forms/WorkerForm';
-import { User, Phone, Mail, Hammer, Clock, AlertCircle, Trash2 } from 'lucide-react';
+import { UserPlus, Mail, Phone, Hammer, Clock, Trash2, ArrowRight, Users, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getAvailabilityColor, normalizeWorker } from '../utils/workerStatus';
+
+const availabilityDot = (status) => {
+    switch (status) {
+        case 'Available': return 'bg-emerald-400';
+        case 'Busy':      return 'bg-amber-400';
+        case 'On Leave':  return 'bg-red-400';
+        default:          return 'bg-gray-400';
+    }
+};
 
 const Workers = () => {
     const [workers, setWorkers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const navigate = useNavigate();
-
-    // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingWorker, setEditingWorker] = useState(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -24,31 +31,14 @@ const Workers = () => {
         try {
             const { data } = await axios.get('/workers');
             setWorkers((data || []).map(normalizeWorker));
-            setLoading(false);
-        } catch (err) {
+        } catch {
             setError('Failed to fetch workers');
+        } finally {
             setLoading(false);
         }
     };
 
-    useEffect(() => {
-        fetchWorkers();
-    }, []);
-
-    const handleCreateWorker = () => {
-        setEditingWorker(null);
-        setIsModalOpen(true);
-    };
-
-    const handleEditWorker = (worker) => {
-        setEditingWorker(worker);
-        setIsModalOpen(true);
-    };
-
-    const handleFormSuccess = () => {
-        setIsModalOpen(false);
-        fetchWorkers();
-    };
+    useEffect(() => { fetchWorkers(); }, []);
 
     const handleConfirmDelete = async () => {
         if (!workerToDelete) return;
@@ -65,180 +55,180 @@ const Workers = () => {
         }
     };
 
-    const handleDeleteClick = (worker) => {
-        setWorkerToDelete(worker);
-        setIsDeleteModalOpen(true);
-    };
+    const stats = [
+        { label: 'Total Workers', value: workers.length,                                          color: 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',   icon: Users },
+        { label: 'Available',     value: workers.filter(w => w.availability === 'Available').length, color: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400', icon: CheckCircle2 },
+        { label: 'Busy',          value: workers.filter(w => w.availability === 'Busy').length,      color: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',       icon: Clock },
+        { label: 'On Leave',      value: workers.filter(w => w.availability === 'On Leave').length,  color: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400',           icon: AlertCircle },
+    ];
 
     if (loading && workers.length === 0) return (
         <div className="space-y-8">
-            <div className="h-8 w-48 bg-white/40 dark:bg-slate-800/40 rounded-lg animate-pulse"></div>
+            <div className="h-10 w-56 bg-white/40 rounded-2xl animate-pulse"></div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {[1,2,3,4].map(i => <div key={i} className="h-20 rounded-2xl animate-pulse bg-white/40"></div>)}
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {[1, 2, 3, 4, 5, 6].map(i => (
-                    <div key={i} className="glass-panel p-6 rounded-3xl h-40 animate-pulse flex flex-col justify-between">
-                        <div className="flex items-center space-x-4">
-                            <div className="w-12 h-12 rounded-full bg-gray-200/50 dark:bg-slate-700/50"></div>
-                            <div className="space-y-3 flex-1">
-                                <div className="h-4 w-3/4 bg-gray-200/50 dark:bg-slate-700/50 rounded"></div>
-                                <div className="h-3 w-1/2 bg-gray-200/50 dark:bg-slate-700/50 rounded"></div>
-                            </div>
-                        </div>
-                        <div className="h-8 w-24 bg-gray-200/50 dark:bg-slate-700/50 rounded-lg mt-4"></div>
-                    </div>
-                ))}
+                {[1,2,3].map(i => <div key={i} className="h-64 rounded-3xl animate-pulse bg-white/40"></div>)}
             </div>
         </div>
     );
-    if (error) return <div className="p-4 text-center text-red-600 dark:text-red-400">{error}</div>;
+
+    if (error) return <div className="p-6 text-center text-red-500">{error}</div>;
 
     return (
-        <div className="p-6">
-            <div className="flex flex-col md:flex-row justify-between items-center mb-8">
+        <div className="space-y-8">
+            {/* Header */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div>
-                    <p className="text-gray-500 font-medium mb-1 dark:text-gray-400">Manage your team and their availability</p>
-                    <h1 className="text-4xl font-bold text-gray-900 dark:text-white tracking-tight">Worker Management</h1>
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-1">Your team</p>
+                    <h1 className="text-4xl font-black text-gray-900 dark:text-white tracking-tight">
+                        Worker <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-500 to-orange-400">Management</span>
+                    </h1>
                 </div>
                 <button
-                    onClick={handleCreateWorker}
-                    className="mt-4 md:mt-0 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl flex items-center gap-2 font-medium shadow-md transition-all hover:-translate-y-0.5"
+                    onClick={() => { setEditingWorker(null); setIsModalOpen(true); }}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-amber-500 to-orange-400 hover:from-amber-600 hover:to-orange-500 shadow-lg shadow-amber-200 dark:shadow-amber-900/30 transition-all hover:-translate-y-0.5 self-start"
                 >
-                    <User size={20} /> Add Worker
+                    <UserPlus size={18} /> Add Worker
                 </button>
             </div>
 
+            {/* Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {stats.map((s) => {
+                    const Icon = s.icon;
+                    return (
+                        <div key={s.label} className="glass-panel rounded-2xl p-4 flex items-center gap-3">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${s.color}`}>
+                                <Icon size={18} />
+                            </div>
+                            <div>
+                                <p className="text-xs font-semibold text-gray-400 dark:text-gray-500">{s.label}</p>
+                                <p className="text-2xl font-black text-gray-900 dark:text-white">{s.value}</p>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+
+            {/* Worker Cards */}
             {workers.length === 0 ? (
-                <div className="text-center py-10 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
-                    <p className="text-gray-500 dark:text-gray-400">No workers found.</p>
+                <div className="glass-panel rounded-3xl py-20 text-center">
+                    <Users size={48} className="mx-auto mb-4 text-gray-300 dark:text-gray-600" />
+                    <p className="text-gray-500 dark:text-gray-400 font-medium">No workers yet. Add your first team member.</p>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {workers.map((worker) => (
-                        <div key={worker._id} className="glass-panel rounded-3xl shadow-sm hover:shadow-lg transition-all hover:-translate-y-1 p-8">
-                            <div className="flex items-center justify-between mb-6 border-b border-gray-100 dark:border-gray-700/50 pb-4">
-                                <div className="flex items-center space-x-4">
-                                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-indigo-900 dark:to-purple-900 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-extrabold text-xl shadow-inner">
-                                        {worker.name.charAt(0)}
-                                    </div>
-                                    <div>
-                                        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-0.5">{worker.name}</h3>
-                                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">£{worker.hourlyRate}/hr</p>
-                                    </div>
-                                </div>
-                                <span className={`px-3 py-1 rounded-full text-xs font-bold shadow-sm ${getAvailabilityColor(worker.availability)}`}>
-                                    {worker.availability}
-                                </span>
-                            </div>
+                    {workers.map((worker) => {
+                        const avail = worker.availability || 'Unknown';
+                        return (
+                            <div key={worker._id} className="glass-panel rounded-3xl shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1.5 overflow-hidden flex flex-col">
+                                {/* Top gradient bar */}
+                                <div className="h-1.5 w-full bg-gradient-to-r from-amber-400 to-orange-400" />
 
-                            <div className="space-y-3">
-                                <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
-                                    <Mail size={16} className="mr-3" />
-                                    <span>{worker.email}</span>
-                                </div>
-                                <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
-                                    <User size={16} className="mr-3" />
-                                    <span>Login: {worker.username || worker.email?.split('@')?.[0] || 'Not assigned'}</span>
-                                </div>
-                                <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
-                                    <AlertCircle size={16} className="mr-3" />
-                                    <span>Password: Securely stored</span>
-                                </div>
-                                <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
-                                    <Phone size={16} className="mr-3" />
-                                    <span>{worker.phone}</span>
-                                </div>
-                                <div className="flex items-start text-sm text-gray-600 dark:text-gray-400">
-                                    <Hammer size={16} className="mr-3 mt-1" />
-                                    <div className="flex flex-wrap gap-1">
-                                        {worker.skills.map((skill, index) => (
-                                            <span key={index} className="bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded text-xs">
-                                                {skill}
-                                            </span>
-                                        ))}
+                                <div className="p-6 flex flex-col flex-1">
+                                    {/* Avatar + Name */}
+                                    <div className="flex items-center gap-4 mb-5">
+                                        <div className="relative">
+                                            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-900/40 dark:to-orange-900/40 flex items-center justify-center text-amber-700 dark:text-amber-300 font-black text-xl shadow-inner">
+                                                {worker.name?.charAt(0)?.toUpperCase() || '?'}
+                                            </div>
+                                            <span className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white dark:border-gray-800 ${availabilityDot(avail)}`}></span>
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <h3 className="text-lg font-bold text-gray-900 dark:text-white leading-tight truncate">{worker.name}</h3>
+                                            <p className="text-sm font-semibold text-amber-600 dark:text-amber-400">£{worker.hourlyRate}/hr</p>
+                                        </div>
+                                        <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full flex-shrink-0 ${getAvailabilityColor(avail)}`}>{avail}</span>
                                     </div>
-                                </div>
-                                {worker.currentJob && (
-                                    <div className="flex items-center text-sm text-blue-600 dark:text-blue-400 mt-2 bg-blue-50 dark:bg-blue-900/20 p-2 rounded">
-                                        <Clock size={16} className="mr-2" />
-                                        <span>Working on: {worker.currentJob.title}</span>
-                                    </div>
-                                )}
-                            </div>
 
-                            <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center">
-                                <button
-                                    onClick={() => handleDeleteClick(worker)}
-                                    className="text-sm text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 flex items-center gap-1"
-                                >
-                                    <Trash2 size={14} /> Delete
-                                </button>
-                                <div className="flex space-x-2">
-                                    <button
-                                        onClick={() => handleEditWorker(worker)}
-                                        className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-                                    >
-                                        Edit
-                                    </button>
-                                    <button
-                                        onClick={() => navigate(`/workers/${worker._id}`)}
-                                        className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300"
-                                    >
-                                        View Profile
-                                    </button>
+                                    {/* Details */}
+                                    <div className="space-y-2.5 flex-1">
+                                        <div className="flex items-center gap-2.5 text-sm text-gray-600 dark:text-gray-400">
+                                            <div className="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center flex-shrink-0">
+                                                <Mail size={13} className="text-blue-500" />
+                                            </div>
+                                            <span className="truncate">{worker.email}</span>
+                                        </div>
+                                        {worker.phone && (
+                                            <div className="flex items-center gap-2.5 text-sm text-gray-600 dark:text-gray-400">
+                                                <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center flex-shrink-0">
+                                                    <Phone size={13} className="text-emerald-500" />
+                                                </div>
+                                                <span>{worker.phone}</span>
+                                            </div>
+                                        )}
+                                        {worker.currentJob && (
+                                            <div className="flex items-center gap-2.5 text-sm text-blue-600 dark:text-blue-400">
+                                                <div className="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center flex-shrink-0">
+                                                    <Clock size={13} className="text-blue-500" />
+                                                </div>
+                                                <span className="truncate">{worker.currentJob.title}</span>
+                                            </div>
+                                        )}
+                                        {worker.skills?.length > 0 && (
+                                            <div className="flex items-start gap-2.5">
+                                                <div className="w-7 h-7 rounded-lg bg-violet-50 dark:bg-violet-900/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                    <Hammer size={13} className="text-violet-500" />
+                                                </div>
+                                                <div className="flex flex-wrap gap-1">
+                                                    {worker.skills.map((skill, i) => (
+                                                        <span key={i} className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300">
+                                                            {skill}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Footer */}
+                                    <div className="mt-5 pt-4 border-t border-gray-100/70 dark:border-white/5 flex items-center justify-between">
+                                        <button
+                                            onClick={() => { setWorkerToDelete(worker); setIsDeleteModalOpen(true); }}
+                                            className="flex items-center gap-1 text-xs font-medium text-red-400 hover:text-red-600 transition-colors"
+                                        >
+                                            <Trash2 size={13} /> Delete
+                                        </button>
+                                        <div className="flex items-center gap-3">
+                                            <button
+                                                onClick={() => { setEditingWorker(worker); setIsModalOpen(true); }}
+                                                className="text-xs font-medium text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                                            >
+                                                Edit
+                                            </button>
+                                            <button
+                                                onClick={() => navigate(`/workers/${worker._id}`)}
+                                                className="flex items-center gap-1 text-xs font-bold text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 transition-colors"
+                                            >
+                                                Profile <ArrowRight size={13} />
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
 
-            <Modal
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                title={editingWorker ? 'Edit Worker' : 'Add New Worker'}
-            >
-                <WorkerForm
-                    worker={editingWorker}
-                    onSuccess={handleFormSuccess}
-                    onCancel={() => setIsModalOpen(false)}
-                />
+            {/* Add / Edit Modal */}
+            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingWorker ? 'Edit Worker' : 'Add New Worker'}>
+                <WorkerForm worker={editingWorker} onSuccess={() => { setIsModalOpen(false); fetchWorkers(); }} onCancel={() => setIsModalOpen(false)} />
             </Modal>
 
-            {/* Delete Confirmation Modal */}
-            <Modal
-                isOpen={isDeleteModalOpen}
-                onClose={() => !isDeleting && setIsDeleteModalOpen(false)}
-                title="Confirm Deletion"
-            >
-                <div className="p-2 sm:p-4">
-                    <div className="flex items-center justify-center mb-6">
-                        <div className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 dark:text-red-400">
-                            <Trash2 size={32} />
-                        </div>
+            {/* Delete Modal */}
+            <Modal isOpen={isDeleteModalOpen} onClose={() => !isDeleting && setIsDeleteModalOpen(false)} title="Delete Worker">
+                <div className="text-center py-2">
+                    <div className="w-16 h-16 rounded-2xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center mx-auto mb-5">
+                        <Trash2 size={28} className="text-red-500" />
                     </div>
-                    <p className="text-center text-gray-700 dark:text-gray-300 mb-2">
-                        Are you sure you want to delete worker <span className="font-bold text-gray-900 dark:text-white">{workerToDelete?.name}</span>?
-                    </p>
-                    <p className="text-center text-sm text-gray-500 dark:text-gray-400 mb-8">
-                        This action cannot be undone. All associated data will be permanently removed.
-                    </p>
-                    
-                    <div className="flex space-x-3 justify-end mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
-                        <button
-                            type="button"
-                            onClick={() => setIsDeleteModalOpen(false)}
-                            disabled={isDeleting}
-                            className="px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            type="button"
-                            onClick={handleConfirmDelete}
-                            disabled={isDeleting}
-                            className="px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 flex items-center"
-                        >
-                            {isDeleting ? 'Deleting...' : 'Delete Worker'}
-                        </button>
+                    <p className="font-bold text-gray-900 dark:text-white mb-1">Delete <span className="text-red-500">{workerToDelete?.name}</span>?</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">This action cannot be undone.</p>
+                    <div className="flex gap-3 justify-end">
+                        <button onClick={() => setIsDeleteModalOpen(false)} disabled={isDeleting} className="px-4 py-2 rounded-xl text-sm font-semibold border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">Cancel</button>
+                        <button onClick={handleConfirmDelete} disabled={isDeleting} className="px-4 py-2 rounded-xl text-sm font-bold text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-50">{isDeleting ? 'Deleting…' : 'Delete'}</button>
                     </div>
                 </div>
             </Modal>

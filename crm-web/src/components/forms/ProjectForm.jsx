@@ -3,6 +3,52 @@ import axios from '../../utils/axiosConfig';
 import CustomerForm from './CustomerForm';
 import { Plus } from 'lucide-react';
 
+const getAllowedStatuses = (startDate, deadline) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const start = startDate ? new Date(startDate) : null;
+    const end = deadline ? new Date(deadline) : null;
+
+    if (!start && !end) return ['Scheduled', 'In Progress', 'Completed', 'Cancelled'];
+
+    if (start && today < start) {
+        // Project hasn't started yet
+        return ['Scheduled', 'Cancelled'];
+    }
+
+    if (start && end && today >= start && today <= end) {
+        // Currently within the working window
+        return ['In Progress', 'Cancelled'];
+    }
+
+    if (end && today > end) {
+        // Past deadline
+        return ['Completed', 'Cancelled'];
+    }
+
+    // Start date is past but no deadline set
+    if (start && today >= start && !end) {
+        return ['In Progress', 'Completed', 'Cancelled'];
+    }
+
+    return ['Scheduled', 'In Progress', 'Completed', 'Cancelled'];
+};
+
+const getAutoStatus = (startDate, deadline) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const start = startDate ? new Date(startDate) : null;
+    const end = deadline ? new Date(deadline) : null;
+
+    if (!start && !end) return null;
+    if (start && today < start) return 'Scheduled';
+    if (start && today >= start && (!end || today <= end)) return 'In Progress';
+    // Past deadline — don't force a status; caller handles it
+    return null;
+};
+
 const ProjectForm = ({ project, onSuccess, onCancel }) => {
     const [formData, setFormData] = useState({
         title: '',
@@ -35,12 +81,21 @@ const ProjectForm = ({ project, onSuccess, onCancel }) => {
         fetchData();
 
         if (project) {
+            const startDate = project.startDate ? project.startDate.split('T')[0] : '';
+            const deadline = project.deadline ? project.deadline.split('T')[0] : '';
+            const allowed = getAllowedStatuses(startDate, deadline);
+            const autoStatus = getAutoStatus(startDate, deadline);
+            // If stored status is no longer valid (e.g. old 'Pending'), pick auto or first allowed
+            const resolvedStatus = allowed.includes(project.status)
+                ? project.status
+                : (autoStatus || allowed[0]);
+
             setFormData({
                 title: project.title,
                 description: project.description,
-                status: project.status,
-                startDate: project.startDate ? project.startDate.split('T')[0] : '',
-                deadline: project.deadline ? project.deadline.split('T')[0] : '',
+                status: resolvedStatus,
+                startDate,
+                deadline,
                 expectedHours: project.expectedHours || '',
                 customerId: project.customerId?._id || project.customerId || '', // Handle populated or ID
                 assignedWorkers: project.assignedWorkers?.map(w => w._id || w) || []
@@ -50,7 +105,23 @@ const ProjectForm = ({ project, onSuccess, onCancel }) => {
 
     const handleChange = (e) => {
         const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+        setFormData(prev => {
+            const updated = { ...prev, [name]: value };
+
+            if (name === 'startDate' || name === 'deadline') {
+                const autoStatus = getAutoStatus(updated.startDate, updated.deadline);
+                const allowed = getAllowedStatuses(updated.startDate, updated.deadline);
+
+                if (autoStatus) {
+                    updated.status = autoStatus;
+                } else if (!allowed.includes(updated.status)) {
+                    // e.g. past deadline but status was Scheduled/In Progress — reset to first allowed
+                    updated.status = allowed[0];
+                }
+            }
+
+            return updated;
+        });
     };
 
     const handleWorkerChange = (e) => {
@@ -147,12 +218,17 @@ const ProjectForm = ({ project, onSuccess, onCancel }) => {
                         onChange={handleChange}
                         className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm p-2"
                     >
-                        <option value="Scheduled">Scheduled</option>
-                        <option value="In Progress">In Progress</option>
-                        <option value="Completed">Completed</option>
-                        <option value="Pending">Pending</option>
-                        <option value="Cancelled">Cancelled</option>
+                        {getAllowedStatuses(formData.startDate, formData.deadline).map(s => (
+                            <option key={s} value={s}>{s}</option>
+                        ))}
                     </select>
+                    {(formData.startDate || formData.deadline) && (
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            {getAllowedStatuses(formData.startDate, formData.deadline).length < 4
+                                ? `Only ${getAllowedStatuses(formData.startDate, formData.deadline).join(' or ')} allowed based on dates`
+                                : ''}
+                        </p>
+                    )}
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Start Date</label>

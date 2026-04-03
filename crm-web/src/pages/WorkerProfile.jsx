@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from '../utils/axiosConfig';
-import { Phone, Mail, Hammer, ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Phone, Mail, Hammer, ArrowLeft, ChevronLeft, ChevronRight, Briefcase, Clock, CheckCircle2 } from 'lucide-react';
 import { DateTime } from 'luxon';
 import {
     getAvailabilityColor,
@@ -9,6 +9,25 @@ import {
     getWorkerStatusForDate,
     normalizeWorker
 } from '../utils/workerStatus';
+
+const availabilityDot = (status) => {
+    switch (status) {
+        case 'Available': return 'bg-emerald-400';
+        case 'Busy':      return 'bg-amber-400';
+        case 'On Leave':  return 'bg-red-400';
+        default:          return 'bg-gray-400';
+    }
+};
+
+const jobStatusBadge = (status) => {
+    switch (status) {
+        case 'Completed':   return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300';
+        case 'In Progress': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300';
+        case 'Scheduled':   return 'bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-300';
+        case 'Cancelled':   return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300';
+        default:            return 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300';
+    }
+};
 
 const WorkerProfile = () => {
     const { id } = useParams();
@@ -23,9 +42,9 @@ const WorkerProfile = () => {
             try {
                 const { data } = await axios.get(`/workers/${id}`);
                 setWorker(normalizeWorker(data));
-                setLoading(false);
-            } catch (err) {
+            } catch {
                 setError('Failed to fetch worker details');
+            } finally {
                 setLoading(false);
             }
         };
@@ -34,11 +53,10 @@ const WorkerProfile = () => {
 
     const buildCalendarDays = () => {
         const monthStart = calendarMonth.startOf('month');
-        const monthEnd = calendarMonth.endOf('month');
-        const gridStart = monthStart.startOf('week');
-        const gridEnd = monthEnd.endOf('week');
+        const monthEnd   = calendarMonth.endOf('month');
+        const gridStart  = monthStart.startOf('week');
+        const gridEnd    = monthEnd.endOf('week');
         const days = [];
-
         let cursor = gridStart;
         while (cursor <= gridEnd) {
             const isoDate = cursor.toISODate();
@@ -52,201 +70,217 @@ const WorkerProfile = () => {
             });
             cursor = cursor.plus({ days: 1 });
         }
-
         return days;
     };
 
     if (loading) return (
         <div className="space-y-6 animate-pulse">
-            <div className="h-4 w-24 bg-white/40 dark:bg-slate-800/40 rounded mb-8"></div>
-            <div className="glass-panel p-8 rounded-3xl h-64 flex items-center space-x-8">
-                <div className="h-32 w-32 rounded-full bg-gray-200/50 dark:bg-slate-700/50"></div>
-                <div className="space-y-4 flex-1">
-                    <div className="h-8 w-1/3 bg-gray-200/50 dark:bg-slate-700/50 rounded"></div>
-                    <div className="h-4 w-1/4 bg-gray-200/50 dark:bg-slate-700/50 rounded"></div>
-                    <div className="h-4 w-1/2 bg-gray-200/50 dark:bg-slate-700/50 rounded"></div>
-                </div>
-            </div>
-            <div className="glass-panel p-8 rounded-3xl h-96"></div>
+            <div className="h-8 w-40 bg-white/40 rounded-xl"></div>
+            <div className="glass-panel rounded-3xl p-8 h-48"></div>
+            <div className="glass-panel rounded-3xl p-8 h-96"></div>
         </div>
     );
-    if (error) return <div className="p-4 text-center text-red-600 dark:text-red-400">{error}</div>;
-    if (!worker) return <div className="p-4 text-center">Worker not found</div>;
+    if (error) return <div className="p-6 text-center text-red-500">{error}</div>;
+    if (!worker) return <div className="p-6 text-center text-gray-500">Worker not found</div>;
 
     const calendarDays = buildCalendarDays();
+    const avail = worker.availability || 'Unknown';
+    const totalJobs     = worker.jobs?.length || 0;
+    const completedJobs = worker.jobs?.filter(j => j.status === 'Completed').length || 0;
+    const activeJobs    = worker.jobs?.filter(j => j.status === 'In Progress').length || 0;
 
     return (
-        <div className="p-6 max-w-6xl mx-auto space-y-8">
+        <div className="space-y-8">
+            {/* Back */}
             <button
                 onClick={() => navigate(-1)}
-                className="flex items-center text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors font-medium bg-white/40 dark:bg-slate-800/40 backdrop-blur-md px-4 py-2 rounded-xl w-max border border-white/40 dark:border-white/10 hover:shadow-sm"
+                className="flex items-center gap-2 text-sm font-semibold text-gray-500 dark:text-gray-400 hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
             >
-                <ArrowLeft size={20} className="mr-2" />
-                Back to Workers
+                <ArrowLeft size={16} /> Back to Workers
             </button>
 
-            <div className="glass-panel rounded-3xl p-8 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-8">
-                    <div className="text-right">
-                        <div className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Hourly Rate</div>
-                        <div className="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">Â£{worker.hourlyRate}</div>
-                        <div className={`mt-3 inline-flex items-center px-4 py-1.5 rounded-full text-xs font-bold shadow-sm ${getAvailabilityColor(worker.availability)}`}>
-                            {worker.availability}
+            {/* Profile header */}
+            <div className="glass-panel rounded-3xl overflow-hidden">
+                <div className="h-1.5 w-full bg-gradient-to-r from-amber-400 to-orange-400" />
+                <div className="p-8 flex flex-col md:flex-row items-center md:items-start gap-6">
+                    {/* Avatar */}
+                    <div className="relative flex-shrink-0">
+                        <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-900/40 dark:to-orange-900/40 flex items-center justify-center text-amber-700 dark:text-amber-300 font-black text-4xl shadow-inner">
+                            {worker.name?.charAt(0)?.toUpperCase()}
                         </div>
+                        <span className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-white dark:border-gray-800 ${availabilityDot(avail)}`}></span>
+                    </div>
+
+                    {/* Info */}
+                    <div className="flex-1 text-center md:text-left">
+                        <p className="text-xs font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-widest mb-1">Team Member</p>
+                        <h1 className="text-3xl font-black text-gray-900 dark:text-white mb-1">{worker.name}</h1>
+                        <p className="text-lg font-bold text-amber-600 dark:text-amber-400 mb-4">£{worker.hourlyRate}/hr</p>
+
+                        <div className="flex flex-wrap gap-3 justify-center md:justify-start mb-4">
+                            <a href={`mailto:${worker.email}`} className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-sm font-medium hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors">
+                                <Mail size={14} /> {worker.email}
+                            </a>
+                            {worker.phone && (
+                                <a href={`tel:${worker.phone}`} className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 text-sm font-medium hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-colors">
+                                    <Phone size={14} /> {worker.phone}
+                                </a>
+                            )}
+                            <span className={`flex items-center px-3 py-1.5 rounded-xl text-sm font-bold ${getAvailabilityColor(avail)}`}>
+                                {avail}
+                            </span>
+                        </div>
+
+                        {worker.skills?.length > 0 && (
+                            <div className="flex flex-wrap gap-2 justify-center md:justify-start">
+                                {worker.skills.map((skill, i) => (
+                                    <span key={i} className="flex items-center gap-1.5 text-[11px] font-bold px-3 py-1 rounded-full bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300">
+                                        <Hammer size={11} /> {skill}
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Stats */}
+                    <div className="flex md:flex-col gap-3 flex-shrink-0">
+                        {[
+                            { label: 'Total Jobs',   value: totalJobs,     icon: Briefcase,    color: 'from-violet-500 to-purple-400' },
+                            { label: 'Completed',    value: completedJobs, icon: CheckCircle2, color: 'from-emerald-500 to-teal-400' },
+                            { label: 'In Progress',  value: activeJobs,    icon: Clock,        color: 'from-blue-500 to-cyan-400' },
+                        ].map(s => {
+                            const Icon = s.icon;
+                            return (
+                                <div key={s.label} className={`flex items-center gap-3 bg-gradient-to-br ${s.color} rounded-2xl px-4 py-3 shadow-sm`}>
+                                    <Icon size={16} className="text-white" />
+                                    <div>
+                                        <p className="text-white/70 text-[10px] font-semibold uppercase">{s.label}</p>
+                                        <p className="text-white text-xl font-black leading-none">{s.value}</p>
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
+            </div>
 
-                <div className="flex flex-col md:flex-row items-center md:items-start space-y-6 md:space-y-0 md:space-x-8">
-                    <div className="w-32 h-32 rounded-full bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-indigo-900 dark:to-purple-900 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-extrabold text-4xl shadow-inner border-4 border-white/60 dark:border-gray-800">
-                        {worker.name.charAt(0)}
-                    </div>
-                    <div className="flex-1 text-center md:text-left pt-2">
-                        <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white mb-4 tracking-tight">{worker.name}</h1>
-                        <div className="flex flex-col md:flex-row items-center md:items-start space-y-3 md:space-y-0 md:space-x-6 text-gray-600 dark:text-gray-400 font-medium">
-                            <div className="flex items-center bg-white/40 dark:bg-slate-800/40 px-3 py-1.5 rounded-lg border border-white/20">
-                                <Mail size={16} className="mr-2 text-indigo-500" />
-                                {worker.email}
-                            </div>
-                            <div className="flex items-center bg-white/40 dark:bg-slate-800/40 px-3 py-1.5 rounded-lg border border-white/20">
-                                <Phone size={16} className="mr-2 text-indigo-500" />
-                                {worker.phone}
-                            </div>
+            {/* Credentials */}
+            <div className="glass-panel rounded-3xl overflow-hidden">
+                <div className="h-1.5 w-full bg-gradient-to-r from-violet-400 to-purple-400" />
+                <div className="p-6">
+                    <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Credentials</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="p-4 bg-white/50 dark:bg-white/5 border border-white/60 dark:border-white/10 rounded-2xl">
+                            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Username</p>
+                            <p className="text-base font-bold text-gray-900 dark:text-white">{worker.username || worker.email?.split('@')?.[0] || 'Not assigned'}</p>
                         </div>
-                        <div className="mt-6 flex flex-wrap gap-2 justify-center md:justify-start">
-                            {worker.skills.map((skill, index) => (
-                                <span key={index} className="inline-flex items-center px-4 py-1.5 rounded-full text-xs font-bold shadow-sm bg-white/60 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300 border border-white/40">
-                                    <Hammer size={12} className="mr-2" />
-                                    {skill}
-                                </span>
-                            ))}
+                        <div className="p-4 bg-white/50 dark:bg-white/5 border border-white/60 dark:border-white/10 rounded-2xl">
+                            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Password</p>
+                            <p className="text-base font-bold text-gray-900 dark:text-white">Securely stored</p>
+                            <p className="text-xs text-gray-400 mt-0.5">Hidden for security</p>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div className="glass-panel rounded-3xl p-8">
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Credentials</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
-                    <div className="p-5 bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm border border-white/50 dark:border-white/10 rounded-2xl">
-                        <div className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Username</div>
-                        <div className="text-lg font-bold text-gray-900 dark:text-white mt-1">
-                            {worker.username || worker.email?.split('@')?.[0] || 'Not assigned'}
-                        </div>
-                    </div>
-                    <div className="p-5 bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm border border-white/50 dark:border-white/10 rounded-2xl">
-                        <div className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Password</div>
-                        <div className="text-lg font-bold text-gray-900 dark:text-white mt-1">Securely stored</div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                            Passwords are hidden by design for security.
-                        </div>
-                    </div>
-                </div>
-
-                <div className="mb-10">
-                    <div className="flex items-center justify-between mb-4">
+            {/* Calendar */}
+            <div className="glass-panel rounded-3xl overflow-hidden">
+                <div className="h-1.5 w-full bg-gradient-to-r from-blue-400 to-cyan-400" />
+                <div className="p-6">
+                    <div className="flex items-center justify-between mb-5">
                         <div>
-                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Availability Calendar</h2>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">Each date stores its own status. Dates without an update stay available.</p>
+                            <h2 className="text-lg font-bold text-gray-900 dark:text-white">Availability Calendar</h2>
+                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Each date stores its own status. Undated days default to Available.</p>
                         </div>
                         <div className="flex items-center gap-2">
-                            <button
-                                type="button"
-                                onClick={() => setCalendarMonth((prev) => prev.minus({ months: 1 }))}
-                                className="p-2 rounded-xl bg-white/50 dark:bg-slate-800/50 border border-white/40 dark:border-white/10"
-                            >
+                            <button onClick={() => setCalendarMonth(p => p.minus({ months: 1 }))} className="w-9 h-9 rounded-xl bg-white/60 dark:bg-white/5 border border-white/60 dark:border-white/10 flex items-center justify-center hover:bg-white/80 dark:hover:bg-white/10 transition-colors">
                                 <ChevronLeft size={16} />
                             </button>
-                            <div className="min-w-36 text-center text-sm font-semibold text-gray-800 dark:text-gray-100">
-                                {calendarMonth.toFormat('MMMM yyyy')}
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => setCalendarMonth((prev) => prev.plus({ months: 1 }))}
-                                className="p-2 rounded-xl bg-white/50 dark:bg-slate-800/50 border border-white/40 dark:border-white/10"
-                            >
+                            <span className="min-w-[140px] text-center text-sm font-bold text-gray-800 dark:text-gray-100">{calendarMonth.toFormat('MMMM yyyy')}</span>
+                            <button onClick={() => setCalendarMonth(p => p.plus({ months: 1 }))} className="w-9 h-9 rounded-xl bg-white/60 dark:bg-white/5 border border-white/60 dark:border-white/10 flex items-center justify-center hover:bg-white/80 dark:hover:bg-white/10 transition-colors">
                                 <ChevronRight size={16} />
                             </button>
                         </div>
                     </div>
 
                     <div className="grid grid-cols-7 gap-2 mb-2">
-                        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
-                            <div key={day} className="px-3 py-2 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                {day}
-                            </div>
+                        {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d => (
+                            <div key={d} className="text-center text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 py-1">{d}</div>
                         ))}
                     </div>
-
                     <div className="grid grid-cols-7 gap-2">
                         {calendarDays.map((day) => (
                             <div
                                 key={day.key}
-                                className={`min-h-24 rounded-2xl border p-3 transition-colors ${getCalendarTone(day.status)} ${!day.inMonth ? 'opacity-45' : ''} ${day.isToday ? 'ring-2 ring-indigo-400/60' : ''}`}
+                                className={`min-h-20 rounded-2xl border p-2.5 transition-colors ${getCalendarTone(day.status)} ${!day.inMonth ? 'opacity-40' : ''} ${day.isToday ? 'ring-2 ring-blue-400/60 ring-offset-1' : ''}`}
                             >
-                                <div className="flex items-center justify-between">
-                                    <span className="text-sm font-bold">{day.label}</span>
-                                    {day.isToday && (
-                                        <span className="text-[10px] font-bold uppercase tracking-wider">Today</span>
-                                    )}
+                                <div className="flex items-center justify-between mb-1">
+                                    <span className={`text-sm font-bold ${day.isToday ? 'text-blue-600 dark:text-blue-400' : ''}`}>{day.label}</span>
+                                    {day.isToday && <span className="text-[9px] font-bold text-blue-500 uppercase">Today</span>}
                                 </div>
-                                <div className="mt-3 text-xs font-semibold">{day.status}</div>
+                                <div className="text-[10px] font-semibold">{day.status}</div>
                             </div>
                         ))}
                     </div>
                 </div>
+            </div>
 
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Status History</h2>
-                {worker.statusHistory && worker.statusHistory.length > 0 ? (
-                    <div className="space-y-3 mb-8">
-                        {worker.statusHistory.map((entry) => (
-                            <div key={entry._id} className="flex items-start justify-between bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
-                                <div>
-                                    <div className="text-sm font-semibold text-gray-900 dark:text-white">{entry.status}</div>
-                                    <div className="text-xs text-gray-500 dark:text-gray-400">{entry.note || 'No note'}</div>
-                                </div>
-                                <div className="text-xs text-gray-500 dark:text-gray-400">{entry.date}</div>
-                            </div>
-                        ))}
-                    </div>
-                ) : (
-                    <p className="text-gray-500 dark:text-gray-400 mb-8">No status updates yet.</p>
-                )}
-
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Project History</h2>
-                {worker.jobs && worker.jobs.length > 0 ? (
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                            <thead className="bg-gray-50 dark:bg-gray-700/50">
-                                <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Project Name</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Start Date</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Deadline</th>
-                                </tr>
-                            </thead>
-                            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                                {worker.jobs.map((job) => (
-                                    <tr key={job._id}>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{job.title}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${job.status === 'Completed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                                                {job.status}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                            {job.startDate ? DateTime.fromISO(job.startDate).toLocaleString(DateTime.DATE_MED) : '-'}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                            {job.deadline ? DateTime.fromISO(job.deadline).toLocaleString(DateTime.DATE_MED) : '-'}
-                                        </td>
-                                    </tr>
+            {/* Status History */}
+            <div className="glass-panel rounded-3xl overflow-hidden">
+                <div className="h-1.5 w-full bg-gradient-to-r from-emerald-400 to-teal-400" />
+                <div className="p-6">
+                    <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Status History</h2>
+                    {worker.statusHistory?.length > 0 ? (
+                        <div className="relative pl-5">
+                            <div className="absolute left-2 top-1 bottom-1 w-px bg-gradient-to-b from-emerald-300 via-teal-200 to-transparent dark:from-emerald-700 dark:via-teal-800"></div>
+                            <div className="space-y-3">
+                                {worker.statusHistory.map((entry) => (
+                                    <div key={entry._id} className="relative">
+                                        <div className="absolute -left-5 top-3 w-3 h-3 rounded-full bg-emerald-400 border-2 border-white dark:border-gray-800"></div>
+                                        <div className="flex items-start justify-between p-3.5 bg-white/50 dark:bg-white/5 border border-white/60 dark:border-white/10 rounded-2xl">
+                                            <div>
+                                                <p className="text-sm font-bold text-gray-900 dark:text-white">{entry.status}</p>
+                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{entry.note || 'No note'}</p>
+                                            </div>
+                                            <span className="text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap ml-4">{entry.date}</span>
+                                        </div>
+                                    </div>
                                 ))}
-                            </tbody>
-                        </table>
-                    </div>
-                ) : (
-                    <p className="text-gray-500 dark:text-gray-400">No project history found for this worker.</p>
-                )}
+                            </div>
+                        </div>
+                    ) : (
+                        <p className="text-gray-400 dark:text-gray-500 text-sm">No status updates yet.</p>
+                    )}
+                </div>
+            </div>
+
+            {/* Project History */}
+            <div className="glass-panel rounded-3xl overflow-hidden">
+                <div className="h-1.5 w-full bg-gradient-to-r from-violet-400 to-purple-400" />
+                <div className="p-6">
+                    <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Project History</h2>
+                    {worker.jobs?.length > 0 ? (
+                        <div className="space-y-3">
+                            {worker.jobs.map((job) => (
+                                <div key={job._id} className="flex items-center gap-4 p-4 bg-white/50 dark:bg-white/5 border border-white/60 dark:border-white/10 rounded-2xl hover:bg-white/70 dark:hover:bg-white/10 transition-all">
+                                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-100 to-purple-100 dark:from-violet-900/40 dark:to-purple-900/40 flex items-center justify-center text-violet-700 dark:text-violet-300 font-black text-sm flex-shrink-0">
+                                        {job.title?.charAt(0)?.toUpperCase()}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-bold text-gray-900 dark:text-white truncate">{job.title}</p>
+                                        <p className="text-xs text-gray-400 dark:text-gray-500">
+                                            {job.startDate ? DateTime.fromISO(job.startDate).toLocaleString(DateTime.DATE_MED) : '—'}
+                                            {job.deadline ? ` → ${DateTime.fromISO(job.deadline).toLocaleString(DateTime.DATE_MED)}` : ''}
+                                        </p>
+                                    </div>
+                                    <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${jobStatusBadge(job.status)}`}>{job.status}</span>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="text-gray-400 dark:text-gray-500 text-sm">No project history found.</p>
+                    )}
+                </div>
             </div>
         </div>
     );

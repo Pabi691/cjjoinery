@@ -863,34 +863,35 @@ const ProjectDetails = () => {
 
                                             <p className="text-sm text-gray-600 dark:text-gray-300 mt-3">{log.description || 'No description provided.'}</p>
 
-                                            {imageSrc && (
-                                                <div className="mt-4">
-                                                    <img
-                                                        src={imageSrc}
-                                                        alt="Daily log"
-                                                        className="w-full max-w-lg rounded-2xl border border-gray-200 dark:border-gray-600"
-                                                    />
-                                                </div>
-                                            )}
-
-                                            {hasCoords && (
-                                                <div className="mt-4">
-                                                    <div className="w-full max-w-lg rounded-2xl overflow-hidden border border-gray-200 dark:border-gray-600">
-                                                        <MapContainer
-                                                            center={mapCenter(lat, lng)}
-                                                            zoom={15}
-                                                            style={{ height: 240, width: '100%' }}
-                                                            scrollWheelZoom={false}
-                                                        >
-                                                            <TileLayer
-                                                                attribution="&copy; OpenStreetMap contributors"
-                                                                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                                            {(imageSrc || hasCoords) && (
+                                                <div className="mt-4 flex flex-col md:flex-row gap-4">
+                                                    {imageSrc && (
+                                                        <div className="flex-1 max-h-[300px] overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-600">
+                                                            <img
+                                                                src={imageSrc}
+                                                                alt="Daily log"
+                                                                className="w-full h-full object-cover"
                                                             />
-                                                            <Marker position={mapCenter(lat, lng)}>
-                                                                <Popup>{geoLabel}</Popup>
-                                                            </Marker>
-                                                        </MapContainer>
-                                                    </div>
+                                                        </div>
+                                                    )}
+                                                    {hasCoords && (
+                                                        <div className="flex-1 max-h-[300px] rounded-2xl overflow-hidden border border-gray-200 dark:border-gray-600">
+                                                            <MapContainer
+                                                                center={mapCenter(lat, lng)}
+                                                                zoom={15}
+                                                                style={{ height: 300, width: '100%' }}
+                                                                scrollWheelZoom={false}
+                                                            >
+                                                                <TileLayer
+                                                                    attribution="&copy; OpenStreetMap contributors"
+                                                                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                                                                />
+                                                                <Marker position={mapCenter(lat, lng)}>
+                                                                    <Popup>{geoLabel}</Popup>
+                                                                </Marker>
+                                                            </MapContainer>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>

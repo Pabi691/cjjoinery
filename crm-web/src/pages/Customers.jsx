@@ -1,15 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from '../utils/axiosConfig';
 import Modal from '../components/Modal';
 import CustomerForm from '../components/forms/CustomerForm';
-import { UserPlus, Mail, Phone, MapPin, Trash2, Edit } from 'lucide-react';
+import { UserPlus, Mail, Phone, MapPin, Trash2, Users, ArrowRight } from 'lucide-react';
 
 const Customers = () => {
+    const navigate = useNavigate();
     const [customers, setCustomers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-
-    // Modal States
     const [isFormModalOpen, setIsFormModalOpen] = useState(false);
     const [editingCustomer, setEditingCustomer] = useState(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -21,36 +21,14 @@ const Customers = () => {
         try {
             const { data } = await axios.get('/customers');
             setCustomers(data);
-            setLoading(false);
-        } catch (err) {
+        } catch {
             setError('Failed to fetch customers');
+        } finally {
             setLoading(false);
         }
     };
 
-    useEffect(() => {
-        fetchCustomers();
-    }, []);
-
-    const handleCreateCustomer = () => {
-        setEditingCustomer(null);
-        setIsFormModalOpen(true);
-    };
-
-    const handleEditCustomer = (customer) => {
-        setEditingCustomer(customer);
-        setIsFormModalOpen(true);
-    };
-
-    const handleDeleteClick = (customer) => {
-        setCustomerToDelete(customer);
-        setIsDeleteModalOpen(true);
-    };
-
-    const handleFormSuccess = () => {
-        setIsFormModalOpen(false);
-        fetchCustomers();
-    };
+    useEffect(() => { fetchCustomers(); }, []);
 
     const handleConfirmDelete = async () => {
         if (!customerToDelete) return;
@@ -67,102 +45,123 @@ const Customers = () => {
         }
     };
 
+    const formatAddress = (addr) => {
+        if (!addr) return null;
+        return typeof addr === 'object' ? Object.values(addr).filter(Boolean).join(', ') : addr;
+    };
+
     if (loading && customers.length === 0) return (
-        <div className="space-y-8 p-6">
-            <div className="flex justify-between items-center">
-                <div className="h-8 w-48 bg-white/40 dark:bg-slate-800/40 rounded-lg animate-pulse"></div>
-                <div className="h-10 w-32 bg-white/40 dark:bg-slate-800/40 rounded-xl animate-pulse"></div>
-            </div>
+        <div className="space-y-8">
+            <div className="h-10 w-56 bg-white/40 rounded-2xl animate-pulse"></div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {[1, 2, 3].map(i => (
-                    <div key={i} className="glass-panel p-6 rounded-3xl h-48 animate-pulse flex flex-col justify-between">
-                         <div className="flex items-center space-x-4 mb-4">
-                            <div className="w-12 h-12 rounded-full bg-gray-200/50 dark:bg-slate-700/50"></div>
-                            <div className="space-y-3 flex-1">
-                                <div className="h-4 w-3/4 bg-gray-200/50 dark:bg-slate-700/50 rounded"></div>
-                                <div className="h-3 w-1/2 bg-gray-200/50 dark:bg-slate-700/50 rounded"></div>
-                            </div>
-                        </div>
-                        <div className="h-8 w-24 bg-gray-200/50 dark:bg-slate-700/50 rounded-lg mt-4"></div>
-                    </div>
-                ))}
+                {[1,2,3].map(i => <div key={i} className="h-56 rounded-3xl animate-pulse bg-white/40"></div>)}
             </div>
         </div>
     );
 
-    if (error) return <div className="p-4 text-center text-red-600 dark:text-red-400">{error}</div>;
+    if (error) return <div className="p-6 text-center text-red-500">{error}</div>;
 
     return (
-        <div className="p-6">
-            <div className="flex flex-col md:flex-row justify-between items-center mb-8">
+        <div className="space-y-8">
+            {/* Header */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div>
-                    <p className="text-gray-500 font-medium mb-1 dark:text-gray-400">Manage your client base and their details</p>
-                    <h1 className="text-4xl font-bold text-gray-900 dark:text-white tracking-tight">Customers</h1>
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-1">Client base</p>
+                    <h1 className="text-4xl font-black text-gray-900 dark:text-white tracking-tight">
+                        Customers <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-500 to-teal-400">&amp; Clients</span>
+                    </h1>
                 </div>
                 <button
-                    onClick={handleCreateCustomer}
-                    className="mt-4 md:mt-0 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl flex items-center gap-2 font-medium shadow-md transition-all hover:-translate-y-0.5"
+                    onClick={() => { setEditingCustomer(null); setIsFormModalOpen(true); }}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-600 hover:to-teal-500 shadow-lg shadow-emerald-200 dark:shadow-emerald-900/30 transition-all hover:-translate-y-0.5 self-start"
                 >
-                    <UserPlus size={20} /> Add Customer
+                    <UserPlus size={18} /> Add Customer
                 </button>
             </div>
 
+            {/* Quick stat */}
+            <div className="glass-panel rounded-2xl p-4 flex items-center gap-3 w-fit">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
+                    <Users size={18} />
+                </div>
+                <div>
+                    <p className="text-xs font-semibold text-gray-400">Total Clients</p>
+                    <p className="text-2xl font-black text-gray-900 dark:text-white">{customers.length}</p>
+                </div>
+            </div>
+
+            {/* Cards */}
             {customers.length === 0 ? (
-                <div className="text-center py-10 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
-                    <p className="text-gray-500 dark:text-gray-400">No customers found. Click Add Customer to create one.</p>
+                <div className="glass-panel rounded-3xl py-20 text-center">
+                    <Users size={48} className="mx-auto mb-4 text-gray-300 dark:text-gray-600" />
+                    <p className="text-gray-500 dark:text-gray-400 font-medium">No customers yet. Add your first client.</p>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {customers.map((customer) => (
-                        <div key={customer._id} className="glass-panel rounded-3xl shadow-sm hover:shadow-lg transition-all hover:-translate-y-1 p-8 flex flex-col justify-between">
-                            <div>
-                                <div className="flex items-center justify-between mb-6 border-b border-gray-100 dark:border-gray-700/50 pb-4">
-                                    <div className="flex items-center space-x-4">
-                                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-indigo-900 dark:to-purple-900 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-extrabold text-xl shadow-inner uppercase">
-                                            {customer.name?.charAt(0) || '?'}
-                                        </div>
-                                        <div>
-                                            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-0.5">{customer.name}</h3>
-                                            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Client / Project Owner</p>
-                                        </div>
+                        <div key={customer._id} className="glass-panel rounded-3xl shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1.5 overflow-hidden flex flex-col">
+                            {/* Top bar */}
+                            <div className="h-1.5 w-full bg-gradient-to-r from-emerald-400 to-teal-400" />
+
+                            <div className="p-6 flex flex-col flex-1">
+                                {/* Avatar + Name */}
+                                <div className="flex items-center gap-4 mb-5">
+                                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-100 to-teal-100 dark:from-emerald-900/40 dark:to-teal-900/40 flex items-center justify-center text-emerald-700 dark:text-emerald-300 font-black text-xl shadow-inner flex-shrink-0">
+                                        {customer.name?.charAt(0)?.toUpperCase() || '?'}
+                                    </div>
+                                    <div className="min-w-0">
+                                        <h3 className="text-lg font-bold text-gray-900 dark:text-white leading-tight truncate">{customer.name}</h3>
+                                        <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide mt-0.5">Client / Project Owner</p>
                                     </div>
                                 </div>
 
-                                <div className="space-y-3 mb-6">
-                                    <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
-                                        <Mail size={16} className="mr-3 text-indigo-500" />
-                                        <span className="truncate">{customer.email || 'No email provided'}</span>
+                                {/* Contact details */}
+                                <div className="space-y-2.5 flex-1">
+                                    <div className="flex items-center gap-2.5 text-sm text-gray-600 dark:text-gray-400">
+                                        <div className="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center flex-shrink-0">
+                                            <Mail size={13} className="text-blue-500" />
+                                        </div>
+                                        <span className="truncate">{customer.email || 'No email'}</span>
                                     </div>
-                                    <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
-                                        <Phone size={16} className="mr-3 text-indigo-500" />
-                                        <span>{customer.phone || 'No phone provided'}</span>
+                                    <div className="flex items-center gap-2.5 text-sm text-gray-600 dark:text-gray-400">
+                                        <div className="w-7 h-7 rounded-lg bg-violet-50 dark:bg-violet-900/20 flex items-center justify-center flex-shrink-0">
+                                            <Phone size={13} className="text-violet-500" />
+                                        </div>
+                                        <span>{customer.phone || 'No phone'}</span>
                                     </div>
-                                    <div className="flex items-start text-sm text-gray-600 dark:text-gray-400">
-                                        <MapPin size={16} className="mr-3 text-indigo-500 mt-0.5 flex-shrink-0" />
-                                        <span className="line-clamp-2">
-                                            {customer.address 
-                                                ? (typeof customer.address === 'object' 
-                                                    ? Object.values(customer.address).filter(Boolean).join(', ') 
-                                                    : customer.address)
-                                                : 'No address provided'}
-                                        </span>
+                                    {formatAddress(customer.address) && (
+                                        <div className="flex items-start gap-2.5 text-sm text-gray-600 dark:text-gray-400">
+                                            <div className="w-7 h-7 rounded-lg bg-rose-50 dark:bg-rose-900/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                <MapPin size={13} className="text-rose-500" />
+                                            </div>
+                                            <span className="line-clamp-2">{formatAddress(customer.address)}</span>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Footer */}
+                                <div className="mt-5 pt-4 border-t border-gray-100/70 dark:border-white/5 flex items-center justify-between">
+                                    <button
+                                        onClick={() => { setCustomerToDelete(customer); setIsDeleteModalOpen(true); }}
+                                        className="flex items-center gap-1 text-xs font-medium text-red-400 hover:text-red-600 transition-colors"
+                                    >
+                                        <Trash2 size={13} /> Delete
+                                    </button>
+                                    <div className="flex items-center gap-3">
+                                        <button
+                                            onClick={() => { setEditingCustomer(customer); setIsFormModalOpen(true); }}
+                                            className="text-xs font-medium text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                                        >
+                                            Edit
+                                        </button>
+                                        <button
+                                            onClick={() => navigate(`/customers/${customer._id}`)}
+                                            className="flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 transition-colors"
+                                        >
+                                            View <ArrowRight size={13} />
+                                        </button>
                                     </div>
                                 </div>
-                            </div>
-
-                            <div className="mt-auto pt-4 border-t border-gray-100/50 dark:border-gray-700/50 flex justify-between items-center w-full">
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); handleDeleteClick(customer); }}
-                                    className="text-sm text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 flex items-center gap-1"
-                                >
-                                    <Trash2 size={14} /> Delete
-                                </button>
-                                <button
-                                    onClick={() => handleEditCustomer(customer)}
-                                    className="text-sm text-indigo-600 dark:text-indigo-400 font-medium flex items-center gap-1 hover:text-indigo-800 dark:hover:text-indigo-300"
-                                >
-                                    <Edit size={14} /> Edit
-                                </button>
                             </div>
                         </div>
                     ))}
@@ -170,54 +169,31 @@ const Customers = () => {
             )}
 
             {/* Form Modal */}
-            <Modal
-                isOpen={isFormModalOpen}
-                onClose={() => setIsFormModalOpen(false)}
-                title={editingCustomer ? 'Edit Customer Info' : 'Add New Customer'}
-            >
+            <Modal isOpen={isFormModalOpen} onClose={() => setIsFormModalOpen(false)} title={editingCustomer ? 'Edit Customer' : 'Add New Customer'}>
                 <CustomerForm
                     customer={editingCustomer}
-                    onSuccess={handleFormSuccess}
+                    onSuccess={(newCustomer) => {
+                        setIsFormModalOpen(false);
+                        fetchCustomers();
+                        if (newCustomer?._id && !editingCustomer) {
+                            setCustomers(prev => [...prev, newCustomer]);
+                        }
+                    }}
                     onCancel={() => setIsFormModalOpen(false)}
                 />
             </Modal>
 
-            {/* Delete Confirmation Modal */}
-            <Modal
-                isOpen={isDeleteModalOpen}
-                onClose={() => !isDeleting && setIsDeleteModalOpen(false)}
-                title="Confirm Deletion"
-            >
-                <div className="p-2 sm:p-4">
-                    <div className="flex items-center justify-center mb-6">
-                        <div className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 dark:text-red-400">
-                            <Trash2 size={32} />
-                        </div>
+            {/* Delete Modal */}
+            <Modal isOpen={isDeleteModalOpen} onClose={() => !isDeleting && setIsDeleteModalOpen(false)} title="Delete Customer">
+                <div className="text-center py-2">
+                    <div className="w-16 h-16 rounded-2xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center mx-auto mb-5">
+                        <Trash2 size={28} className="text-red-500" />
                     </div>
-                    <p className="text-center text-gray-700 dark:text-gray-300 mb-2">
-                        Are you sure you want to delete customer <span className="font-bold text-gray-900 dark:text-white">{customerToDelete?.name}</span>?
-                    </p>
-                    <p className="text-center text-sm text-gray-500 dark:text-gray-400 mb-8">
-                        This action cannot be undone. You cannot delete a customer if they have associated projects.
-                    </p>
-                    
-                    <div className="flex space-x-3 justify-end mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
-                        <button
-                            type="button"
-                            onClick={() => setIsDeleteModalOpen(false)}
-                            disabled={isDeleting}
-                            className="px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            type="button"
-                            onClick={handleConfirmDelete}
-                            disabled={isDeleting}
-                            className="px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 flex items-center"
-                        >
-                            {isDeleting ? 'Deleting...' : 'Delete Customer'}
-                        </button>
+                    <p className="font-bold text-gray-900 dark:text-white mb-1">Delete <span className="text-red-500">{customerToDelete?.name}</span>?</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">Cannot delete customers with active projects.</p>
+                    <div className="flex gap-3 justify-end">
+                        <button onClick={() => setIsDeleteModalOpen(false)} disabled={isDeleting} className="px-4 py-2 rounded-xl text-sm font-semibold border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">Cancel</button>
+                        <button onClick={handleConfirmDelete} disabled={isDeleting} className="px-4 py-2 rounded-xl text-sm font-bold text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-50">{isDeleting ? 'Deleting…' : 'Delete'}</button>
                     </div>
                 </div>
             </Modal>

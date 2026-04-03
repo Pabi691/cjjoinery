@@ -9,6 +9,8 @@ import ProjectDetails from './pages/ProjectDetails';
 import Workers from './pages/Workers';
 import WorkerProfile from './pages/WorkerProfile';
 import Customers from './pages/Customers';
+import CustomerDetails from './pages/CustomerDetails';
+import Quotes from './pages/Quotes';
 import ErrorBoundary from './components/ErrorBoundary';
 
 function App() {
@@ -24,7 +26,8 @@ function App() {
         <Route path="workers" element={<Workers />} />
         <Route path="workers/:id" element={<WorkerProfile />} />
         <Route path="customers" element={<ErrorBoundary><Customers /></ErrorBoundary>} />
-        <Route path="invoices" element={<div className="p-4 text-gray-800 dark:text-white">Invoices Management (Coming Soon)</div>} />
+        <Route path="customers/:id" element={<ErrorBoundary><CustomerDetails /></ErrorBoundary>} />
+        <Route path="invoices" element={<ErrorBoundary><Quotes /></ErrorBoundary>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
