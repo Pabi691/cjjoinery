@@ -47,6 +47,14 @@ const jobSchema = mongoose.Schema(
                         ref: 'Worker',
                     },
                 ],
+                workerSchedules: [
+                    {
+                        workerId: { type: mongoose.Schema.Types.Mixed },
+                        startTime: { type: String, default: '' }, // "09:00"
+                        endTime:   { type: String, default: '' }, // "17:00"
+                        hours:     { type: Number, default: 0  },
+                    }
+                ],
             }
         ],
         schedules: [

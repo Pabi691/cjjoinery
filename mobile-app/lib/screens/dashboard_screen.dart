@@ -264,20 +264,68 @@ class _HomeTabState extends State<_HomeTab> {
     }).toList();
   }
 
-  double _todayHours(Map<String, dynamic> job) {
+  Map<String, dynamic>? _todayEntry(Map<String, dynamic> job) {
     final today = _todayKey();
     final wc = job['workCalendar'] as List<dynamic>? ?? [];
-    final entry = wc.firstWhere(
-      (e) => e['date']?.toString().startsWith(today) == true,
-      orElse: () => null,
-    );
+    try {
+      return wc.firstWhere(
+        (e) => e['date']?.toString().startsWith(today) == true,
+      ) as Map<String, dynamic>;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Returns the workerSchedule entry for this worker from today's workCalendar entry.
+  Map<String, dynamic>? _workerScheduleForToday(Map<String, dynamic> job) {
+    final entry = _todayEntry(job);
+    if (entry == null) return null;
+    final workerId = widget.worker['_id']?.toString() ?? '';
+    final schedules = entry['workerSchedules'] as List<dynamic>? ?? [];
+    try {
+      final match = schedules.firstWhere((s) {
+        final sid = (s['workerId'] ?? '').toString();
+        return sid == workerId;
+      });
+      return Map<String, dynamic>.from(match as Map);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  double _todayHours(Map<String, dynamic> job) {
+    final ws = _workerScheduleForToday(job);
+    if (ws != null) {
+      final h = ws['hours'];
+      if (h is num && h > 0) return h.toDouble();
+      // fallback: calculate from start/end
+      final start = ws['startTime']?.toString() ?? '';
+      final end   = ws['endTime']?.toString()   ?? '';
+      final calc  = _calcHours(start, end);
+      if (calc > 0) return calc;
+    }
+    final entry = _todayEntry(job);
     if (entry != null) {
       final h = entry['hours'];
-      if (h is num) return h.toDouble();
+      if (h is num && h > 0) return h.toDouble();
     }
     final wh = widget.worker['workHoursPerDay'];
     if (wh is num) return wh.toDouble();
     return 8.0;
+  }
+
+  double _calcHours(String startTime, String endTime) {
+    if (startTime.isEmpty || endTime.isEmpty) return 0;
+    try {
+      final sParts = startTime.split(':').map(int.parse).toList();
+      final eParts = endTime.split(':').map(int.parse).toList();
+      final startMin = sParts[0] * 60 + sParts[1];
+      final endMin   = eParts[0] * 60 + eParts[1];
+      if (endMin <= startMin) return 0;
+      return (endMin - startMin) / 60.0;
+    } catch (_) {
+      return 0;
+    }
   }
 
   bool _isCheckedInToday(Map<String, dynamic> job) {
@@ -481,8 +529,20 @@ class _HomeTabState extends State<_HomeTab> {
               final job = rawJob as Map<String, dynamic>;
               final jobId = job['_id']?.toString() ?? '';
               final hours = _todayHours(job);
-              final checkedIn = _isCheckedInToday(job);
+              final ws = _workerScheduleForToday(job);
+              final startTime = ws?['startTime']?.toString() ?? '';
+              final endTime   = ws?['endTime']?.toString()   ?? '';
+              final hasTime   = startTime.isNotEmpty && endTime.isNotEmpty;
+              final checkedIn  = _isCheckedInToday(job);
               final checkingIn = _checkingIn[jobId] ?? false;
+
+              String hoursLabel;
+              if (hasTime) {
+                hoursLabel = '$startTime – $endTime  (${hours.toStringAsFixed(hours.truncateToDouble() == hours ? 0 : 1)}h)';
+              } else {
+                hoursLabel = '${hours.toStringAsFixed(hours.truncateToDouble() == hours ? 0 : 1)} hrs scheduled today';
+              }
+
               return Container(
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                 padding: const EdgeInsets.all(16),
@@ -500,26 +560,35 @@ class _HomeTabState extends State<_HomeTab> {
                 ),
                 child: Row(
                   children: [
+                    // Hours badge
                     Container(
-                      width: 44,
-                      height: 44,
+                      width: 52,
+                      height: 52,
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(14),
                         gradient: const LinearGradient(
                           colors: [Color(0xFFF59E0B), Color(0xFFF97316)],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
                       ),
-                      child: Center(
-                        child: Text(
-                          hours.toStringAsFixed(hours.truncateToDouble() == hours ? 0 : 1),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 14,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            hours.toStringAsFixed(hours.truncateToDouble() == hours ? 0 : 1),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 16,
+                              height: 1.1,
+                            ),
                           ),
-                        ),
+                          const Text(
+                            'hrs',
+                            style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.w600),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -535,13 +604,26 @@ class _HomeTabState extends State<_HomeTab> {
                               fontSize: 14,
                             ),
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '${hours.toStringAsFixed(hours.truncateToDouble() == hours ? 0 : 1)} hrs scheduled today',
-                            style: const TextStyle(
-                              color: AppColors.textMuted,
-                              fontSize: 12,
-                            ),
+                          const SizedBox(height: 3),
+                          Row(
+                            children: [
+                              Icon(
+                                hasTime ? Icons.schedule_rounded : Icons.access_time_rounded,
+                                size: 12,
+                                color: AppColors.textMuted,
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  hoursLabel,
+                                  style: const TextStyle(
+                                    color: AppColors.textMuted,
+                                    fontSize: 12,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),

@@ -65,6 +65,37 @@ const buildWorkCalendarFromSchedules = (schedules = []) => {
     return derived;
 };
 
+const parseTimeToMinutes = (t) => {
+    if (!t) return null;
+    const [h, m] = t.split(':').map(Number);
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+    return h * 60 + m;
+};
+
+const calcWorkerHours = (startTime, endTime) => {
+    const s = parseTimeToMinutes(startTime);
+    const e = parseTimeToMinutes(endTime);
+    if (s === null || e === null || e <= s) return 0;
+    return Math.round(((e - s) / 60) * 100) / 100;
+};
+
+const normalizeWorkerSchedules = (raw = []) => {
+    const seen = new Set();
+    return raw.filter(Boolean).reduce((acc, ws) => {
+        const wid = resolveWorkerId(ws?.workerId || ws);
+        if (!wid || seen.has(wid)) return acc;
+        seen.add(wid);
+        const h = calcWorkerHours(ws.startTime, ws.endTime);
+        acc.push({
+            workerId:  wid,
+            startTime: ws.startTime || '',
+            endTime:   ws.endTime   || '',
+            hours:     h > 0 ? h : (Number(ws.hours) || 0),
+        });
+        return acc;
+    }, []);
+};
+
 const normalizeWorkCalendar = (entries = []) => {
     const byDate = new Map();
 
@@ -72,17 +103,32 @@ const normalizeWorkCalendar = (entries = []) => {
         const date = normalizeDateKey(rawEntry?.date);
         if (!date) continue;
 
-        const hours = Number(rawEntry?.hours);
-        const safeHours = Number.isFinite(hours) && hours > 0 ? hours : 0;
         const workerIds = Array.from(
             new Set((rawEntry?.workerIds || []).map(resolveWorkerId).filter(Boolean))
         );
+        const workerSchedules = normalizeWorkerSchedules(rawEntry?.workerSchedules || []);
+        const scheduleTotal = workerSchedules.reduce((s, ws) => s + (ws.hours || 0), 0);
+        const fallback = Number(rawEntry?.hours);
+        const safeHours = scheduleTotal > 0 ? scheduleTotal
+            : (Number.isFinite(fallback) && fallback > 0 ? fallback : 0);
 
-        const existing = byDate.get(date) || { date, hours: 0, workerIds: [] };
+        const scheduleWorkerIds = workerSchedules.map((ws) => ws.workerId);
+        const allWorkerIds = Array.from(new Set([...workerIds, ...scheduleWorkerIds]));
+
+        const existing = byDate.get(date) || { date, hours: 0, workerIds: [], workerSchedules: [] };
+        const mergedSchedules = [...existing.workerSchedules];
+        for (const ws of workerSchedules) {
+            const idx = mergedSchedules.findIndex((e) => e.workerId === ws.workerId);
+            if (idx >= 0) mergedSchedules[idx] = ws;
+            else mergedSchedules.push(ws);
+        }
+        const mergedTotal = mergedSchedules.reduce((s, ws) => s + (ws.hours || 0), 0);
+
         byDate.set(date, {
             date,
-            hours: safeHours,
-            workerIds: Array.from(new Set([...(existing.workerIds || []), ...workerIds]))
+            hours: mergedTotal > 0 ? mergedTotal : Math.max(safeHours, existing.hours || 0),
+            workerIds: Array.from(new Set([...(existing.workerIds || []), ...allWorkerIds])),
+            workerSchedules: mergedSchedules,
         });
     }
 
@@ -251,12 +297,14 @@ const ProjectDetails = () => {
         const existingEntry = project.workCalendar?.find((entry) => entry.date === selectedDate) || {
             date: selectedDate,
             hours: 0,
-            workerIds: []
+            workerIds: [],
+            workerSchedules: [],
         };
 
         const nextRawEntry = updater({
             ...existingEntry,
-            workerIds: [...(existingEntry.workerIds || [])]
+            workerIds: [...(existingEntry.workerIds || [])],
+            workerSchedules: [...(existingEntry.workerSchedules || [])],
         });
 
         const normalizedEntry = normalizeWorkCalendar([{
@@ -265,7 +313,8 @@ const ProjectDetails = () => {
         }])[0] || {
             date: selectedDate,
             hours: 0,
-            workerIds: []
+            workerIds: [],
+            workerSchedules: [],
         };
 
         const nextCalendar = [
@@ -291,6 +340,24 @@ const ProjectDetails = () => {
         setSaveMessage('');
     };
 
+    const updateWorkerTime = (workerId, field, value) => {
+        updateSelectedDateEntry((entry) => {
+            const schedules = [...(entry.workerSchedules || [])];
+            const idx = schedules.findIndex((s) => s.workerId === workerId);
+            if (idx < 0) {
+                schedules.push({ workerId, startTime: '', endTime: '', hours: 0, [field]: value });
+            } else {
+                schedules[idx] = { ...schedules[idx], [field]: value };
+            }
+            // Recalculate hours for this worker
+            const updated = schedules.map((s) => ({
+                ...s,
+                hours: calcWorkerHours(s.startTime, s.endTime),
+            }));
+            return { ...entry, workerSchedules: updated };
+        });
+    };
+
     const toggleWorkerOnSelectedDate = (workerId) => {
         updateSelectedDateEntry((entry) => {
             const alreadyAssigned = entry.workerIds.includes(workerId);
@@ -312,7 +379,15 @@ const ProjectDetails = () => {
             const payload = {
                 startDate: project.startDate ? normalizeDateKey(project.startDate) : null,
                 deadline: project.deadline ? normalizeDateKey(project.deadline) : null,
-                workCalendar: normalizeWorkCalendar(project.workCalendar || [])
+                workCalendar: normalizeWorkCalendar(project.workCalendar || []).map((entry) => ({
+                    ...entry,
+                    workerSchedules: (entry.workerSchedules || []).map((ws) => ({
+                        workerId:  ws.workerId,
+                        startTime: ws.startTime || '',
+                        endTime:   ws.endTime   || '',
+                        hours:     ws.hours     || 0,
+                    })),
+                })),
             };
 
             const { data } = await axios.put(`/jobs/${id}`, payload);
@@ -568,99 +643,116 @@ const ProjectDetails = () => {
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-6">
-                                <div className="rounded-2xl border border-white/50 dark:border-white/10 bg-white/70 dark:bg-slate-900/40 p-5">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div>
-                                            <div className="text-lg font-bold text-gray-900 dark:text-white">
-                                                {DateTime.fromISO(selectedDate).toLocaleString(DateTime.DATE_HUGE)}
-                                            </div>
-                                            <div className="text-sm text-gray-500 dark:text-gray-400">
-                                                Plan the team and hours for this day
-                                            </div>
+                            {/* Per-worker time planner */}
+                            <div className="mt-6 rounded-2xl border border-white/50 dark:border-white/10 bg-white/70 dark:bg-slate-900/40 p-5">
+                                <div className="flex items-center justify-between mb-5">
+                                    <div>
+                                        <div className="text-lg font-bold text-gray-900 dark:text-white">
+                                            {DateTime.fromISO(selectedDate).toLocaleString(DateTime.DATE_HUGE)}
                                         </div>
-                                        <Calendar size={18} className="text-indigo-500" />
+                                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                                            Set start &amp; end time per worker — hours are calculated automatically
+                                        </div>
                                     </div>
-
-                                    <div className="space-y-4">
-                                        <label className="block">
-                                            <span className="block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">
-                                                Planned Hours
-                                            </span>
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                step="0.5"
-                                                value={selectedEntry.hours || ''}
-                                                disabled={!isSelectedDateEditable}
-                                                onChange={(e) => updateSelectedDateEntry((entry) => ({
-                                                    ...entry,
-                                                    hours: e.target.value
-                                                }))}
-                                                placeholder="0"
-                                                className="w-full rounded-2xl border border-white/50 dark:border-white/10 bg-white dark:bg-slate-900/50 px-4 py-3 text-sm font-medium text-gray-800 dark:text-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                                            />
-                                        </label>
-
-                                        <div className="flex flex-wrap gap-2">
-                                            <button
-                                                type="button"
-                                                onClick={() => updateProjectField('startDate', selectedDate)}
-                                                disabled={!isSelectedDateEditable}
-                                                className="px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                                            >
-                                                Use as Start Date
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => updateProjectField('deadline', selectedDate)}
-                                                disabled={!isSelectedDateEditable}
-                                                className="px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                                            >
-                                                Use as Deadline
-                                            </button>
-                                        </div>
+                                    <div className="flex items-center gap-2">
+                                        <Clock size={16} className="text-indigo-500" />
+                                        <span className="text-sm font-bold text-gray-700 dark:text-gray-200">
+                                            Total: {selectedEntry.hours ? `${selectedEntry.hours}h` : '—'}
+                                        </span>
                                     </div>
                                 </div>
 
-                                <div className="rounded-2xl border border-white/50 dark:border-white/10 bg-white/70 dark:bg-slate-900/40 p-5">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div>
-                                            <div className="text-lg font-bold text-gray-900 dark:text-white">Workers for {DateTime.fromISO(selectedDate).toFormat('dd MMM')}</div>
-                                            <div className="text-sm text-gray-500 dark:text-gray-400">Only assigned team members can be planned here</div>
-                                        </div>
-                                        <Users size={18} className="text-indigo-500" />
+                                {project.assignedWorkers?.length ? (
+                                    <div className="space-y-3">
+                                        {project.assignedWorkers.map((worker) => {
+                                            const workerId = resolveWorkerId(worker);
+                                            const ws = (selectedEntry.workerSchedules || []).find((s) => s.workerId === workerId);
+                                            const active = selectedEntry.workerIds.includes(workerId);
+                                            const workerHours = ws ? calcWorkerHours(ws.startTime, ws.endTime) : 0;
+
+                                            return (
+                                                <div key={workerId} className={`rounded-2xl border p-4 transition-all ${
+                                                    active
+                                                        ? 'border-indigo-200 dark:border-indigo-700/40 bg-indigo-50/60 dark:bg-indigo-900/10'
+                                                        : 'border-white/50 dark:border-white/10 bg-white/50 dark:bg-slate-900/30'
+                                                }`}>
+                                                    <div className="flex items-center justify-between mb-3">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-indigo-900/50 dark:to-purple-900/50 flex items-center justify-center text-indigo-600 dark:text-indigo-300 font-black text-sm">
+                                                                {worker?.name?.charAt(0) || '?'}
+                                                            </div>
+                                                            <span className="font-bold text-sm text-gray-900 dark:text-white">{worker?.name || 'Worker'}</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            {workerHours > 0 && (
+                                                                <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+                                                                    {workerHours}h
+                                                                </span>
+                                                            )}
+                                                            <button
+                                                                type="button"
+                                                                disabled={!isSelectedDateEditable}
+                                                                onClick={() => toggleWorkerOnSelectedDate(workerId)}
+                                                                className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                                                                    active
+                                                                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                                                                        : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
+                                                                }`}
+                                                            >
+                                                                {active ? 'On' : 'Off'}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+
+                                                    {active && (
+                                                        <div className="grid grid-cols-2 gap-3">
+                                                            <label className="block">
+                                                                <span className="block text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Start Time</span>
+                                                                <input
+                                                                    type="time"
+                                                                    value={ws?.startTime || ''}
+                                                                    disabled={!isSelectedDateEditable}
+                                                                    onChange={(e) => updateWorkerTime(workerId, 'startTime', e.target.value)}
+                                                                    className="w-full rounded-xl border border-white/50 dark:border-white/10 bg-white dark:bg-slate-900/50 px-3 py-2 text-sm font-medium text-gray-800 dark:text-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                />
+                                                            </label>
+                                                            <label className="block">
+                                                                <span className="block text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">End Time</span>
+                                                                <input
+                                                                    type="time"
+                                                                    value={ws?.endTime || ''}
+                                                                    disabled={!isSelectedDateEditable}
+                                                                    onChange={(e) => updateWorkerTime(workerId, 'endTime', e.target.value)}
+                                                                    className="w-full rounded-xl border border-white/50 dark:border-white/10 bg-white dark:bg-slate-900/50 px-3 py-2 text-sm font-medium text-gray-800 dark:text-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                />
+                                                            </label>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
                                     </div>
+                                ) : (
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 italic">Assign workers to the project first.</p>
+                                )}
 
-                                    {project.assignedWorkers?.length ? (
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                            {project.assignedWorkers.map((worker) => {
-                                                const workerId = resolveWorkerId(worker);
-                                                const active = selectedEntry.workerIds.includes(workerId);
-
-                                                return (
-                                                    <button
-                                                        key={workerId}
-                                                        type="button"
-                                                        disabled={!isSelectedDateEditable}
-                                                        onClick={() => toggleWorkerOnSelectedDate(workerId)}
-                                                        className={`flex items-center justify-between rounded-2xl border px-4 py-3 text-left transition-all ${
-                                                            active
-                                                                ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-700/40 dark:bg-emerald-900/20 dark:text-emerald-300'
-                                                                : 'border-white/50 bg-white dark:bg-slate-900/50 text-gray-800 dark:text-gray-100 dark:border-white/10'
-                                                        } ${!isSelectedDateEditable ? 'cursor-not-allowed opacity-50' : ''}`}
-                                                    >
-                                                        <span className="font-semibold">{worker?.name || 'Worker'}</span>
-                                                        <span className="text-xs font-bold uppercase tracking-wider">
-                                                            {active ? 'Working' : 'Off'}
-                                                        </span>
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    ) : (
-                                        <p className="text-sm text-gray-500 dark:text-gray-400 italic">Assign workers to the project first.</p>
-                                    )}
+                                <div className="flex flex-wrap gap-2 mt-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => updateProjectField('startDate', selectedDate)}
+                                        disabled={!isSelectedDateEditable}
+                                        className="px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        Use as Start Date
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => updateProjectField('deadline', selectedDate)}
+                                        disabled={!isSelectedDateEditable}
+                                        className="px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        Use as Deadline
+                                    </button>
                                 </div>
                             </div>
 

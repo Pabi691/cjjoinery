@@ -48,6 +48,38 @@ const validateWorkCalendarRange = (workCalendar = [], startDate, deadline) => {
     }
 };
 
+const parseTimeToMinutes = (timeStr) => {
+    if (!timeStr || typeof timeStr !== 'string') return null;
+    const [h, m] = timeStr.split(':').map(Number);
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+    return h * 60 + m;
+};
+
+const calcWorkerHours = (startTime, endTime) => {
+    const start = parseTimeToMinutes(startTime);
+    const end   = parseTimeToMinutes(endTime);
+    if (start === null || end === null || end <= start) return 0;
+    return Math.round(((end - start) / 60) * 100) / 100;
+};
+
+const normalizeWorkerSchedules = (rawSchedules = []) => {
+    const seen = new Set();
+    const result = [];
+    for (const s of rawSchedules) {
+        const wid = s?.workerId?._id?.toString?.() || s?.workerId?.toString?.() || s?.workerId || '';
+        if (!wid || seen.has(wid)) continue;
+        seen.add(wid);
+        const h = calcWorkerHours(s.startTime, s.endTime);
+        result.push({
+            workerId:  wid,
+            startTime: s.startTime || '',
+            endTime:   s.endTime   || '',
+            hours:     h > 0 ? h : (Number.isFinite(Number(s.hours)) && Number(s.hours) > 0 ? Number(s.hours) : 0),
+        });
+    }
+    return result;
+};
+
 const normalizeWorkCalendar = (entries = []) => {
     const calendarMap = new Map();
 
@@ -55,8 +87,6 @@ const normalizeWorkCalendar = (entries = []) => {
         const date = normalizeDateKey(rawEntry?.date);
         if (!date) continue;
 
-        const hours = Number(rawEntry?.hours);
-        const safeHours = Number.isFinite(hours) && hours > 0 ? hours : 0;
         const workerIds = Array.from(
             new Set(
                 (rawEntry?.workerIds || [])
@@ -65,11 +95,40 @@ const normalizeWorkCalendar = (entries = []) => {
             )
         );
 
-        const existing = calendarMap.get(date) || { date, hours: 0, workerIds: [] };
+        const workerSchedules = normalizeWorkerSchedules(rawEntry?.workerSchedules || []);
+
+        // Derive total hours: sum of per-worker hours if schedules exist, else fallback to entry.hours
+        const scheduleHoursTotal = workerSchedules.reduce((sum, s) => sum + (s.hours || 0), 0);
+        const fallbackHours = Number(rawEntry?.hours);
+        const safeHours = scheduleHoursTotal > 0
+            ? scheduleHoursTotal
+            : (Number.isFinite(fallbackHours) && fallbackHours > 0 ? fallbackHours : 0);
+
+        // Merge workerIds from workerSchedules too
+        const scheduleWorkerIds = workerSchedules.map((s) => s.workerId).filter(Boolean);
+        const allWorkerIds = Array.from(new Set([...workerIds, ...scheduleWorkerIds]));
+
+        const existing = calendarMap.get(date) || { date, hours: 0, workerIds: [], workerSchedules: [] };
+
+        // Merge workerSchedules (keep existing for workers not in this entry)
+        const mergedSchedules = [...existing.workerSchedules];
+        for (const ws of workerSchedules) {
+            const idx = mergedSchedules.findIndex((e) => e.workerId === ws.workerId);
+            if (idx >= 0) {
+                mergedSchedules[idx] = ws;
+            } else {
+                mergedSchedules.push(ws);
+            }
+        }
+
+        const mergedWorkerIds = Array.from(new Set([...(existing.workerIds || []), ...allWorkerIds]));
+        const mergedHoursTotal = mergedSchedules.reduce((sum, s) => sum + (s.hours || 0), 0);
+
         calendarMap.set(date, {
             date,
-            hours: safeHours,
-            workerIds: Array.from(new Set([...(existing.workerIds || []), ...workerIds]))
+            hours: mergedHoursTotal > 0 ? mergedHoursTotal : Math.max(safeHours, existing.hours || 0),
+            workerIds: mergedWorkerIds,
+            workerSchedules: mergedSchedules,
         });
     }
 
