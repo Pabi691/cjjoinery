@@ -20,7 +20,7 @@ const jobSchema = mongoose.Schema(
         expectedHours: { type: Number },
         status: {
             type: String,
-            enum: ['Scheduled', 'In Progress', 'Completed', 'Cancelled', 'Pending'],
+            enum: ['Scheduled', 'In Progress', 'Completed', 'Cancelled'],
             default: 'Scheduled',
         },
         priority: { type: String },

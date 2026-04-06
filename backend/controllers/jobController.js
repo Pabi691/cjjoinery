@@ -255,7 +255,8 @@ const createJob = asyncHandler(async (req, res) => {
         expectedHours,
         assignedWorkers,
         priority,
-        workCalendar
+        workCalendar,
+        status
     } = req.body;
     const normalizedCalendar = normalizeWorkCalendar(workCalendar || []);
     const totalHours = expectedHours ?? getTotalPlannedHours(normalizedCalendar);
@@ -275,7 +276,7 @@ const createJob = asyncHandler(async (req, res) => {
         materials,
         workCalendar: normalizedCalendar,
         schedules: buildSchedulesFromWorkCalendar(normalizedCalendar),
-        status: 'Pending',
+        status: status || 'Scheduled',
         priority: priority || 'Medium',
         assignedWorkers: assignedWorkers || [],
     });
