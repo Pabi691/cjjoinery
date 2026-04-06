@@ -330,15 +330,23 @@ class _HomeTabState extends State<_HomeTab> {
 
   bool _isCheckedInToday(Map<String, dynamic> job) {
     final jobId = job['_id']?.toString() ?? '';
-    if (_checkedIn.containsKey(jobId)) return _checkedIn[jobId]!;
+    // If check-in was done this session, trust the in-memory flag
+    if (_checkedIn[jobId] == true) return true;
+    // Otherwise check if the server already recorded a checkInTime
     final workerId = widget.worker['_id']?.toString() ?? '';
     final today = _todayKey();
     final wc = job['workCalendar'] as List<dynamic>? ?? [];
-    return wc.any((e) {
-      if (e['date']?.toString().startsWith(today) != true) return false;
-      final ids = (e['workerIds'] as List<dynamic>? ?? []).map((id) => id.toString());
-      return ids.contains(workerId);
-    });
+    for (final e in wc) {
+      if (e['date']?.toString().startsWith(today) != true) continue;
+      final schedules = e['workerSchedules'] as List<dynamic>? ?? [];
+      for (final s in schedules) {
+        if (s['workerId']?.toString() == workerId &&
+            s['checkInTime'] != null) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   Future<void> _checkIn(Map<String, dynamic> job) async {

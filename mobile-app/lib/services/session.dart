@@ -21,13 +21,20 @@ class WorkerSession {
 
   /// Load persisted session. Returns true if a session was restored.
   static Future<bool> load() async {
-    final prefs = await SharedPreferences.getInstance();
-    final workerJson = prefs.getString(_workerKey);
-    final savedToken = prefs.getString(_tokenKey);
-    if (workerJson != null && savedToken != null) {
-      worker = Map<String, dynamic>.from(jsonDecode(workerJson));
-      token = savedToken;
-      return true;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final workerJson = prefs.getString(_workerKey);
+      final savedToken = prefs.getString(_tokenKey);
+      if (workerJson != null && savedToken != null) {
+        worker = Map<String, dynamic>.from(
+            jsonDecode(workerJson) as Map<String, dynamic>);
+        token = savedToken;
+        return true;
+      }
+    } catch (_) {
+      // Corrupted or unavailable storage — treat as logged out
+      worker = null;
+      token = null;
     }
     return false;
   }

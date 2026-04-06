@@ -14,8 +14,13 @@ void main() async {
     ),
   );
 
-  // Restore saved session before showing any screen
-  final hasSession = await WorkerSession.load();
+  // Restore saved session — fall back to login if anything goes wrong
+  bool hasSession = false;
+  try {
+    hasSession = await WorkerSession.load();
+  } catch (_) {
+    hasSession = false;
+  }
 
   runApp(MyApp(initialRoute: hasSession ? '/dashboard' : '/login'));
 }

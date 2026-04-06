@@ -49,34 +49,47 @@ const getDashboardSummary = asyncHandler(async (req, res) => {
         .lean();
 
     const todayKey = new Date().toISOString().split('T')[0];
-    const runningJobs = await Job.find({ status: 'In Progress' })
+
+    // Fetch all active jobs (In Progress or Scheduled) and filter to those
+    // with at least one worker who has actually checked in today (checkInTime set)
+    const activeJobs = await Job.find({ status: { $in: ['In Progress', 'Scheduled'] } })
         .populate('assignedWorkers', 'name')
         .lean();
-    const runningProjects = runningJobs.map(job => {
-        const todayEntry = (job.workCalendar || []).find(e => e.date === todayKey);
-        const checkedInIds = (todayEntry?.workerIds || []).map(id => id.toString());
-        const checkedInToday = (job.assignedWorkers || [])
-            .filter(w => checkedInIds.includes(w._id.toString()))
-            .map(w => {
-                const ws = (todayEntry?.workerSchedules || []).find(
-                    s => s.workerId?.toString() === w._id.toString()
-                );
-                return {
-                    _id: w._id,
-                    name: w.name,
-                    checkInTime: ws?.checkInTime || null,
-                    checkOutTime: ws?.checkOutTime || null,
-                };
-            });
-        return {
-            _id: job._id,
-            title: job.title,
-            status: job.status,
-            assignedWorkers: job.assignedWorkers || [],
-            checkedInToday,
-            todayHours: todayEntry?.hours || 0
-        };
-    });
+
+    const runningProjects = activeJobs
+        .map(job => {
+            const todayEntry = (job.workCalendar || []).find(e => e.date === todayKey);
+            const todaySchedules = todayEntry?.workerSchedules || [];
+
+            // Only workers who have actually checked in (checkInTime recorded)
+            const checkedInToday = (job.assignedWorkers || [])
+                .map(w => {
+                    const ws = todaySchedules.find(
+                        s => s.workerId?.toString() === w._id.toString()
+                    );
+                    return ws?.checkInTime
+                        ? {
+                            _id: w._id,
+                            name: w.name,
+                            checkInTime: ws.checkInTime,
+                            checkOutTime: ws.checkOutTime || null,
+                        }
+                        : null;
+                })
+                .filter(Boolean);
+
+            return checkedInToday.length > 0
+                ? {
+                    _id: job._id,
+                    title: job.title,
+                    status: job.status,
+                    assignedWorkers: job.assignedWorkers || [],
+                    checkedInToday,
+                    todayHours: todayEntry?.hours || 0,
+                }
+                : null;
+        })
+        .filter(Boolean);
 
     const now = new Date();
     const startDate = new Date(now.getFullYear(), now.getMonth() - 5, 1);
