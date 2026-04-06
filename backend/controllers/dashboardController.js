@@ -5,6 +5,7 @@ const Job = require('../models/Job');
 const Worker = require('../models/Worker');
 const Quote = require('../models/Quote');
 const { decorateWorker } = require('../utils/workerStatus');
+const { autoUpdateJobStatuses } = require('./jobController');
 
 const canUseDb = () => mongoose.connection && mongoose.connection.readyState === 1;
 
@@ -23,6 +24,9 @@ const getDashboardSummary = asyncHandler(async (req, res) => {
         res.status(503);
         throw new Error('Database not connected');
     }
+
+    // Auto-transition jobs before computing any counts or running projects
+    await autoUpdateJobStatuses();
 
     const activeProjectsCount = await Job.countDocuments({
         status: 'In Progress'

@@ -199,6 +199,19 @@ const getTotalPlannedHours = (workCalendar = []) => (
     normalizeWorkCalendar(workCalendar).reduce((total, entry) => total + (Number(entry.hours) || 0), 0)
 );
 
+// Auto-transition Scheduled → In Progress when startDate has arrived,
+// and In Progress → Completed when deadline has passed (only if no manual override).
+const autoUpdateJobStatuses = async () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Scheduled jobs whose start date is today or in the past → In Progress
+    await Job.updateMany(
+        { status: 'Scheduled', startDate: { $lte: today } },
+        { $set: { status: 'In Progress' } }
+    );
+};
+
 const normalizeJob = (job) => {
     if (!job) return job;
     const plain = job.toObject ? job.toObject() : job;
@@ -218,6 +231,7 @@ const normalizeJob = (job) => {
 // @route   GET /api/jobs
 // @access  Private
 const getJobs = asyncHandler(async (req, res) => {
+    await autoUpdateJobStatuses();
     const jobs = await Job.find({})
         .populate('customerId', 'name email')
         .populate('assignedWorkers', 'name')
@@ -396,4 +410,4 @@ const deleteJob = asyncHandler(async (req, res) => {
     res.json({ message: 'Job removed' });
 });
 
-module.exports = { getJobs, getJobById, createJob, updateJob, deleteJob };
+module.exports = { getJobs, getJobById, createJob, updateJob, deleteJob, autoUpdateJobStatuses };

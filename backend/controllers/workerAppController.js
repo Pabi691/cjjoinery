@@ -12,6 +12,7 @@ const {
     normalizeDateKey,
     upsertStatusHistoryEntry
 } = require('../utils/workerStatus');
+const { autoUpdateJobStatuses } = require('./jobController');
 
 const sanitizeWorker = (worker) => {
     if (!worker) return null;
@@ -103,6 +104,8 @@ const getWorkerJobs = asyncHandler(async (req, res) => {
         res.status(503);
         throw new Error('Database not connected');
     }
+
+    await autoUpdateJobStatuses();
 
     const jobs = await Job.find({ assignedWorkers: workerId })
         .populate('assignedWorkers', 'name')
