@@ -295,23 +295,25 @@ const ProjectForm = ({ project, onSuccess, onCancel }) => {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Assign Workers</label>
                 <div className="space-y-2 max-h-40 overflow-y-auto border rounded p-2 border-gray-200 dark:border-gray-700">
                     {workers.map(worker => {
-                        const isOnLeave = worker.availability === 'On Leave';
+                        const isOnLeaveToday = worker.availability === 'On Leave';
                         return (
-                            <div key={worker._id} className={`flex items-center ${isOnLeave ? 'opacity-50' : ''}`} title={isOnLeave ? 'Worker is on leave and cannot be assigned' : ''}>
+                            <div key={worker._id} className="flex items-center">
                                 <input
                                     type="checkbox"
                                     id={`worker-${worker._id}`}
                                     value={worker._id}
                                     checked={formData.assignedWorkers.includes(worker._id)}
                                     onChange={handleWorkerChange}
-                                    disabled={isOnLeave}
-                                    className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded disabled:cursor-not-allowed"
+                                    className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
                                 />
-                                <label htmlFor={`worker-${worker._id}`} className={`ml-2 block text-sm ${isOnLeave ? 'line-through text-gray-400 dark:text-gray-500 cursor-not-allowed' : 'text-gray-900 dark:text-gray-300'}`}>
+                                <label htmlFor={`worker-${worker._id}`} className="ml-2 block text-sm text-gray-900 dark:text-gray-300">
                                     {worker.name}
-                                    <span className={`ml-1 text-xs ${isOnLeave ? 'text-red-500 dark:text-red-400 font-medium' : 'text-gray-500 dark:text-gray-400'}`}>
+                                    <span className={`ml-1 text-xs font-medium ${isOnLeaveToday ? 'text-amber-500 dark:text-amber-400' : 'text-gray-500 dark:text-gray-400'}`}>
                                         ({worker.availability})
                                     </span>
+                                    {isOnLeaveToday && (
+                                        <span className="ml-1 text-[10px] text-gray-400 dark:text-gray-500">· on leave today only</span>
+                                    )}
                                 </label>
                             </div>
                         );
