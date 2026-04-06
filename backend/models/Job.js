@@ -49,10 +49,12 @@ const jobSchema = mongoose.Schema(
                 ],
                 workerSchedules: [
                     {
-                        workerId: { type: mongoose.Schema.Types.Mixed },
-                        startTime: { type: String, default: '' }, // "09:00"
-                        endTime:   { type: String, default: '' }, // "17:00"
-                        hours:     { type: Number, default: 0  },
+                        workerId:     { type: mongoose.Schema.Types.Mixed },
+                        startTime:    { type: String, default: '' }, // "09:00"
+                        endTime:      { type: String, default: '' }, // "17:00"
+                        hours:        { type: Number, default: 0  },
+                        checkInTime:  { type: Date,   default: null },
+                        checkOutTime: { type: Date,   default: null },
                     }
                 ],
             }

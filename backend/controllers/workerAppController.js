@@ -343,15 +343,27 @@ const checkInWorker = asyncHandler(async (req, res) => {
     const todayKey = normalizeDateKey(new Date());
     job.workCalendar = job.workCalendar || [];
 
-    const entryIndex = job.workCalendar.findIndex(e => e.date === todayKey);
+    let entryIndex = job.workCalendar.findIndex(e => e.date === todayKey);
     if (entryIndex >= 0) {
         const existing = (job.workCalendar[entryIndex].workerIds || []).map(id => id.toString());
         if (!existing.includes(workerId)) {
             job.workCalendar[entryIndex].workerIds.push(workerId);
         }
     } else {
-        job.workCalendar.push({ date: todayKey, hours: 0, workerIds: [workerId] });
+        job.workCalendar.push({ date: todayKey, hours: 0, workerIds: [workerId], workerSchedules: [] });
+        entryIndex = job.workCalendar.length - 1;
     }
+
+    // Record check-in time in workerSchedules
+    const now = new Date();
+    const schedules = job.workCalendar[entryIndex].workerSchedules || [];
+    const wsIdx = schedules.findIndex(s => s.workerId?.toString() === workerId);
+    if (wsIdx >= 0) {
+        schedules[wsIdx].checkInTime = schedules[wsIdx].checkInTime || now;
+    } else {
+        schedules.push({ workerId, startTime: '', endTime: '', hours: 0, checkInTime: now, checkOutTime: null });
+    }
+    job.workCalendar[entryIndex].workerSchedules = schedules;
 
     job.markModified('workCalendar');
     await job.save();
@@ -369,6 +381,55 @@ const checkInWorker = asyncHandler(async (req, res) => {
     res.json({ success: true, date: todayKey, jobId, jobTitle: job.title });
 });
 
+// @desc    Worker check-out for today's job
+// @route   POST /api/worker/:workerId/check-out
+// @access  Public
+const checkOutWorker = asyncHandler(async (req, res) => {
+    const { workerId } = req.params;
+    const { jobId } = req.body;
+
+    if (!(await ensureDb())) {
+        res.status(503);
+        throw new Error('Database not connected');
+    }
+
+    const job = await Job.findById(jobId);
+    if (!job) {
+        res.status(404);
+        throw new Error('Job not found');
+    }
+
+    const todayKey = normalizeDateKey(new Date());
+    const entryIndex = (job.workCalendar || []).findIndex(e => e.date === todayKey);
+    if (entryIndex < 0) {
+        res.status(400);
+        throw new Error('No check-in record found for today');
+    }
+
+    const now = new Date();
+    const schedules = job.workCalendar[entryIndex].workerSchedules || [];
+    const wsIdx = schedules.findIndex(s => s.workerId?.toString() === workerId);
+    if (wsIdx >= 0) {
+        schedules[wsIdx].checkOutTime = now;
+    } else {
+        schedules.push({ workerId, startTime: '', endTime: '', hours: 0, checkInTime: null, checkOutTime: now });
+    }
+    job.workCalendar[entryIndex].workerSchedules = schedules;
+    job.markModified('workCalendar');
+    await job.save();
+
+    const worker = await Worker.findById(workerId).lean();
+    await createNotification({
+        type: 'check_out',
+        workerId,
+        workerName: worker?.name || 'Worker',
+        message: `${worker?.name || 'Worker'} checked out from ${job.title}`,
+        details: { jobId, jobTitle: job.title, date: todayKey, checkOutTime: now }
+    });
+
+    res.json({ success: true, checkOutTime: now, jobId, date: todayKey });
+});
+
 module.exports = {
     loginWorker,
     getWorkerJobs,
@@ -376,5 +437,6 @@ module.exports = {
     scheduleJob,
     addDailyLog,
     getDailyLogImage,
-    checkInWorker
+    checkInWorker,
+    checkOutWorker
 };

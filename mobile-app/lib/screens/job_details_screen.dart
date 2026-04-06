@@ -22,6 +22,8 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
   final _api = ApiService();
   late Map<String, dynamic> _job;
   bool _savingLog = false;
+  bool _checkingOut = false;
+  bool _checkedOut = false;
   bool _gettingLocation = false;
 
   DateTime _selectedDate = DateTime.now();
@@ -354,6 +356,65 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
       );
     } finally {
       if (mounted) setState(() => _savingLog = false);
+    }
+  }
+
+  bool get _isCheckedInToday {
+    final todayIso = _toIsoDateStr(DateTime.now());
+    final workerId = WorkerSession.worker?['_id']?.toString() ?? '';
+    final workCal = _job['workCalendar'] as List<dynamic>? ?? [];
+    final todayEntry = workCal.cast<Map?>().firstWhere(
+      (e) => e?['date']?.toString() == todayIso,
+      orElse: () => null,
+    );
+    if (todayEntry == null) return false;
+    final ids = (todayEntry['workerIds'] as List<dynamic>? ?? [])
+        .map((id) => id.toString());
+    return ids.contains(workerId);
+  }
+
+  bool get _isCheckedOutToday {
+    if (_checkedOut) return true;
+    final todayIso = _toIsoDateStr(DateTime.now());
+    final workerId = WorkerSession.worker?['_id']?.toString() ?? '';
+    final workCal = _job['workCalendar'] as List<dynamic>? ?? [];
+    final todayEntry = workCal.cast<Map?>().firstWhere(
+      (e) => e?['date']?.toString() == todayIso,
+      orElse: () => null,
+    );
+    if (todayEntry == null) return false;
+    final schedules = todayEntry['workerSchedules'] as List<dynamic>? ?? [];
+    final ws = schedules.cast<Map?>().firstWhere(
+      (s) => s?['workerId']?.toString() == workerId,
+      orElse: () => null,
+    );
+    return ws?['checkOutTime'] != null;
+  }
+
+  Future<void> _checkOut() async {
+    final workerId = WorkerSession.worker?['_id']?.toString();
+    final jobId = _job['_id']?.toString();
+    if (workerId == null || jobId == null) return;
+    setState(() => _checkingOut = true);
+    try {
+      await _api.checkOutWorker(workerId, jobId);
+      setState(() => _checkedOut = true);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Checked out successfully.'),
+          backgroundColor: AppColors.info,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Check-out failed: ${e.toString().replaceFirst('Exception: ', '')}'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _checkingOut = false);
     }
   }
 
@@ -934,6 +995,70 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
                                   ),
                           ),
                         ),
+
+                        // ── Check Out button ──
+                        if (_isCheckedInToday) ...[
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 50,
+                            child: _isCheckedOutToday
+                                ? Container(
+                                    decoration: BoxDecoration(
+                                      color: AppColors.info.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(
+                                        color: AppColors.info.withOpacity(0.3),
+                                      ),
+                                    ),
+                                    child: const Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(Icons.logout_rounded,
+                                            color: AppColors.info, size: 18),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          'Checked Out',
+                                          style: TextStyle(
+                                            color: AppColors.info,
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 15,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                                : ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.info,
+                                      foregroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                    ),
+                                    onPressed: _checkingOut ? null : _checkOut,
+                                    child: _checkingOut
+                                        ? const SizedBox(
+                                            width: 20,
+                                            height: 20,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2.5,
+                                              color: Colors.white,
+                                            ),
+                                          )
+                                        : const Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              Icon(Icons.logout_rounded,
+                                                  size: 18),
+                                              SizedBox(width: 8),
+                                              Text('Check Out'),
+                                            ],
+                                          ),
+                                  ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -1084,7 +1209,7 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
                                   SizedBox(
                                     height: 160,
                                     width: double.infinity,
-                                    child: _buildInteractiveMap(lat!, lng!),
+                                    child: _buildInteractiveMap(lat, lng),
                                   ),
                                 ],
                               ],

@@ -225,13 +225,31 @@ const DashboardHome = () => {
                                     </div>
                                     {/* Checked-in worker avatars */}
                                     {checkedIn > 0 ? (
-                                        <div className="flex items-center gap-1.5 flex-wrap">
-                                            {project.checkedInToday.slice(0, 4).map((w) => (
-                                                <span key={w._id} className="flex items-center gap-1 text-[11px] bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full font-semibold">
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span>
-                                                    {w.name}
-                                                </span>
-                                            ))}
+                                        <div className="flex flex-col gap-1.5">
+                                            {project.checkedInToday.slice(0, 4).map((w) => {
+                                                const inTime = w.checkInTime
+                                                    ? DateTime.fromISO(w.checkInTime).toLocaleString(DateTime.TIME_SIMPLE)
+                                                    : null;
+                                                const outTime = w.checkOutTime
+                                                    ? DateTime.fromISO(w.checkOutTime).toLocaleString(DateTime.TIME_SIMPLE)
+                                                    : null;
+                                                return (
+                                                    <span key={w._id} className="flex items-center gap-1.5 text-[11px] bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 px-2 py-1 rounded-full font-semibold">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block flex-shrink-0"></span>
+                                                        <span>{w.name}</span>
+                                                        {inTime && (
+                                                            <span className="text-[10px] text-emerald-500 dark:text-emerald-400 font-medium">
+                                                                in {inTime}
+                                                            </span>
+                                                        )}
+                                                        {outTime && (
+                                                            <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">
+                                                                · out {outTime}
+                                                            </span>
+                                                        )}
+                                                    </span>
+                                                );
+                                            })}
                                             {checkedIn > 4 && (
                                                 <span className="text-[11px] text-gray-400">+{checkedIn - 4} more</span>
                                             )}

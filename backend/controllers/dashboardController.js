@@ -55,9 +55,19 @@ const getDashboardSummary = asyncHandler(async (req, res) => {
     const runningProjects = runningJobs.map(job => {
         const todayEntry = (job.workCalendar || []).find(e => e.date === todayKey);
         const checkedInIds = (todayEntry?.workerIds || []).map(id => id.toString());
-        const checkedInToday = (job.assignedWorkers || []).filter(w =>
-            checkedInIds.includes(w._id.toString())
-        );
+        const checkedInToday = (job.assignedWorkers || [])
+            .filter(w => checkedInIds.includes(w._id.toString()))
+            .map(w => {
+                const ws = (todayEntry?.workerSchedules || []).find(
+                    s => s.workerId?.toString() === w._id.toString()
+                );
+                return {
+                    _id: w._id,
+                    name: w.name,
+                    checkInTime: ws?.checkInTime || null,
+                    checkOutTime: ws?.checkOutTime || null,
+                };
+            });
         return {
             _id: job._id,
             title: job.title,

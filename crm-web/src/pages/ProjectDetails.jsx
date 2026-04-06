@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from '../utils/axiosConfig';
+import { getWorkerStatusForDate } from '../utils/workerStatus';
 import {
     ArrowLeft,
     Calendar,
@@ -164,6 +165,7 @@ const ProjectDetails = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const [project, setProject] = useState(null);
+    const [allWorkers, setAllWorkers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [saving, setSaving] = useState(false);
@@ -219,7 +221,11 @@ const ProjectDetails = () => {
     useEffect(() => {
         const fetchProject = async () => {
             try {
-                const { data } = await axios.get(`/jobs/${id}`);
+                const [{ data }, workersRes] = await Promise.all([
+                    axios.get(`/jobs/${id}`),
+                    axios.get('/workers')
+                ]);
+                setAllWorkers(workersRes.data || []);
                 const normalized = normalizeProject(data);
                 const defaultDate = normalized.workCalendar?.[0]?.date
                     || normalizeDateKey(normalized.dailyLogs?.[0]?.date)
@@ -359,19 +365,47 @@ const ProjectDetails = () => {
     };
 
     const toggleWorkerOnSelectedDate = (workerId) => {
-        updateSelectedDateEntry((entry) => {
-            const alreadyAssigned = entry.workerIds.includes(workerId);
-            return {
-                ...entry,
-                workerIds: alreadyAssigned
-                    ? entry.workerIds.filter((item) => item !== workerId)
-                    : [...entry.workerIds, workerId]
-            };
-        });
+        const entry = project.workCalendar?.find((e) => e.date === selectedDate);
+        const alreadyAssigned = (entry?.workerIds || []).includes(workerId);
+
+        // Block turning ON a worker who is On Leave on the selected date
+        if (!alreadyAssigned) {
+            const workerData = allWorkers.find((w) => (w._id?.toString() || w.id?.toString()) === workerId);
+            if (workerData) {
+                const status = getWorkerStatusForDate(workerData, selectedDate);
+                if (status === 'On Leave') {
+                    setSaveMessage(`Cannot assign: ${workerData.name} is on leave on this date.`);
+                    return;
+                }
+            }
+        }
+
+        updateSelectedDateEntry((e) => ({
+            ...e,
+            workerIds: alreadyAssigned
+                ? e.workerIds.filter((item) => item !== workerId)
+                : [...e.workerIds, workerId]
+        }));
     };
 
     const savePlanner = async () => {
         if (!project) return;
+
+        // Validate: every day with hours must have at least one worker with start+end time
+        const calendar = normalizeWorkCalendar(project.workCalendar || []);
+        for (const entry of calendar) {
+            if ((entry.hours || 0) > 0) {
+                const hasWorkerWithTime = (entry.workerSchedules || []).some(
+                    (ws) => entry.workerIds.includes(ws.workerId) && ws.startTime && ws.endTime
+                );
+                if (!hasWorkerWithTime) {
+                    setSaveMessage(
+                        `${DateTime.fromISO(entry.date).toLocaleString(DateTime.DATE_MED)}: at least one assigned worker must have start & end time set.`
+                    );
+                    return;
+                }
+            }
+        }
 
         setSaving(true);
         setSaveMessage('');
@@ -669,19 +703,31 @@ const ProjectDetails = () => {
                                             const ws = (selectedEntry.workerSchedules || []).find((s) => s.workerId === workerId);
                                             const active = selectedEntry.workerIds.includes(workerId);
                                             const workerHours = ws ? calcWorkerHours(ws.startTime, ws.endTime) : 0;
+                                            const workerData = allWorkers.find((w) => (w._id?.toString() || w.id?.toString()) === workerId);
+                                            const workerStatus = workerData ? getWorkerStatusForDate(workerData, selectedDate) : 'Available';
+                                            const isOnLeave = workerStatus === 'On Leave';
 
                                             return (
                                                 <div key={workerId} className={`rounded-2xl border p-4 transition-all ${
-                                                    active
-                                                        ? 'border-indigo-200 dark:border-indigo-700/40 bg-indigo-50/60 dark:bg-indigo-900/10'
-                                                        : 'border-white/50 dark:border-white/10 bg-white/50 dark:bg-slate-900/30'
+                                                    isOnLeave
+                                                        ? 'border-amber-200 dark:border-amber-700/30 bg-amber-50/40 dark:bg-amber-900/10 opacity-70'
+                                                        : active
+                                                            ? 'border-indigo-200 dark:border-indigo-700/40 bg-indigo-50/60 dark:bg-indigo-900/10'
+                                                            : 'border-white/50 dark:border-white/10 bg-white/50 dark:bg-slate-900/30'
                                                 }`}>
                                                     <div className="flex items-center justify-between mb-3">
                                                         <div className="flex items-center gap-2">
                                                             <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-indigo-900/50 dark:to-purple-900/50 flex items-center justify-center text-indigo-600 dark:text-indigo-300 font-black text-sm">
                                                                 {worker?.name?.charAt(0) || '?'}
                                                             </div>
-                                                            <span className="font-bold text-sm text-gray-900 dark:text-white">{worker?.name || 'Worker'}</span>
+                                                            <div>
+                                                                <span className="font-bold text-sm text-gray-900 dark:text-white">{worker?.name || 'Worker'}</span>
+                                                                {isOnLeave && (
+                                                                    <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                                                                        On Leave
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                         <div className="flex items-center gap-2">
                                                             {workerHours > 0 && (
@@ -691,7 +737,8 @@ const ProjectDetails = () => {
                                                             )}
                                                             <button
                                                                 type="button"
-                                                                disabled={!isSelectedDateEditable}
+                                                                disabled={!isSelectedDateEditable || isOnLeave}
+                                                                title={isOnLeave ? `${worker?.name} is on leave — cannot assign` : undefined}
                                                                 onClick={() => toggleWorkerOnSelectedDate(workerId)}
                                                                 className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                                                                     active

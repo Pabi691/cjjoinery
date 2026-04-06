@@ -476,32 +476,7 @@ class _HomeTabState extends State<_HomeTab> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 28),
-
-                // Stats row
-                Row(
-                  children: [
-                    Expanded(
-                      child: _StatCard(
-                        icon: Icons.work_outline_rounded,
-                        label: 'Assigned',
-                        value: jobs.length.toString(),
-                        color: AppColors.info,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: _StatCard(
-                        icon: Icons.circle,
-                        label: 'Status',
-                        value: todayStatus,
-                        color: _statusColor(todayStatus),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 22),
-                _HomeStatusCalendar(days: upcomingDays, worker: worker),
+                const SizedBox(height: 16),
               ],
             ),
           ),
@@ -698,6 +673,37 @@ class _HomeTabState extends State<_HomeTab> {
               );
             }),
           ],
+
+          // ── Stats + Calendar ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _StatCard(
+                    icon: Icons.work_outline_rounded,
+                    label: 'Assigned',
+                    value: jobs.length.toString(),
+                    color: AppColors.info,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: _StatCard(
+                    icon: Icons.circle,
+                    label: 'Status',
+                    value: todayStatus,
+                    color: _statusColor(todayStatus),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 22),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: _HomeStatusCalendar(days: upcomingDays, worker: worker),
+          ),
 
           // Upcoming Jobs section
           Padding(
@@ -1200,7 +1206,7 @@ class _StatusTabState extends State<_StatusTab> {
                 ),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
-                  value: _selectedStatus,
+                  initialValue: _selectedStatus,
                   dropdownColor: AppColors.surface,
                   style: const TextStyle(
                       color: AppColors.textPrimary, fontSize: 15),
@@ -1653,9 +1659,11 @@ class _ProfileTab extends StatelessWidget {
             width: double.infinity,
             height: 52,
             child: ElevatedButton(
-              onPressed: () {
-                WorkerSession.clear();
-                Navigator.pushReplacementNamed(context, '/login');
+              onPressed: () async {
+                await WorkerSession.clear();
+                if (context.mounted) {
+                  Navigator.pushReplacementNamed(context, '/login');
+                }
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.error.withOpacity(0.15),

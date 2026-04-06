@@ -7,7 +7,8 @@ const {
     scheduleJob,
     addDailyLog,
     getDailyLogImage,
-    checkInWorker
+    checkInWorker,
+    checkOutWorker
 } = require('../controllers/workerAppController');
 const { dailyLogUpload } = require('../middleware/upload');
 
@@ -25,6 +26,7 @@ router.post('/login', loginWorker);
 router.get('/:workerId/jobs', getWorkerJobs);
 router.post('/:workerId/status', updateWorkerStatus);
 router.post('/:workerId/check-in', checkInWorker);
+router.post('/:workerId/check-out', checkOutWorker);
 router.post('/:workerId/jobs/:jobId/schedule', scheduleJob);
 router.post('/:workerId/jobs/:jobId/daily-log', dailyLogUploadHandler, addDailyLog);
 router.get('/jobs/:jobId/daily-logs/:logId/image', getDailyLogImage);

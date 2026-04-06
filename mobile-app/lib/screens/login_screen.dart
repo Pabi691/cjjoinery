@@ -65,6 +65,7 @@ class _LoginScreenState extends State<LoginScreen>
       final result = await _api.loginWorker(username, password);
       WorkerSession.worker = result['worker'] as Map<String, dynamic>?;
       WorkerSession.token = result['token'] as String?;
+      await WorkerSession.save();
       if (!mounted) return;
       Navigator.pushReplacementNamed(context, '/dashboard');
     } catch (error) {
@@ -231,47 +232,6 @@ class _LoginScreenState extends State<LoginScreen>
                                         ),
                                       )
                                     : const Text('Sign In'),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 28),
-
-                      // Demo credentials
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 20, vertical: 14),
-                        decoration: AppDecorations.glass(
-                          opacity: 0.05,
-                          borderRadius: 14,
-                        ),
-                        child: Column(
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.info_outline_rounded,
-                                    size: 15,
-                                    color: AppColors.amber.withOpacity(0.7)),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'Demo Credentials',
-                                  style: TextStyle(
-                                    color: AppColors.amber.withOpacity(0.8),
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 12,
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'john.carpenter  •  worker123',
-                              style: TextStyle(
-                                color: AppColors.textSecondary.withOpacity(0.7),
-                                fontSize: 12,
                               ),
                             ),
                           ],

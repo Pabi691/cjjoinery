@@ -1,5 +1,7 @@
 const asyncHandler = require('express-async-handler');
 const Job = require('../models/Job');
+const Worker = require('../models/Worker');
+const { getEffectiveWorkerStatus } = require('../utils/workerStatus');
 
 const normalizeDateKey = (value) => {
     if (!value) return '';
@@ -177,6 +179,22 @@ const buildSchedulesFromWorkCalendar = (workCalendar = []) => {
     }));
 };
 
+const validateWorkersNotOnLeave = async (workerIds = []) => {
+    if (!workerIds.length) return;
+    const workers = await Worker.find({ _id: { $in: workerIds } }).lean();
+    const onLeave = workers.filter(
+        (w) => getEffectiveWorkerStatus(w) === 'On Leave'
+    );
+    if (onLeave.length > 0) {
+        const names = onLeave.map((w) => w.name).join(', ');
+        const error = new Error(
+            `Cannot assign worker(s) currently on leave: ${names}`
+        );
+        error.statusCode = 400;
+        throw error;
+    }
+};
+
 const getTotalPlannedHours = (workCalendar = []) => (
     normalizeWorkCalendar(workCalendar).reduce((total, entry) => total + (Number(entry.hours) || 0), 0)
 );
@@ -247,6 +265,7 @@ const createJob = asyncHandler(async (req, res) => {
     const totalHours = expectedHours ?? getTotalPlannedHours(normalizedCalendar);
     validateDateOrder(startDate, deadline || endDate);
     validateWorkCalendarRange(normalizedCalendar, startDate, deadline || endDate);
+    await validateWorkersNotOnLeave(assignedWorkers || []);
 
     const newJob = await Job.create({
         customerId,
@@ -318,6 +337,12 @@ const updateJob = asyncHandler(async (req, res) => {
     }
 
     if (assignedWorkers) {
+        try {
+            await validateWorkersNotOnLeave(assignedWorkers);
+        } catch (error) {
+            res.status(error.statusCode || 400);
+            throw error;
+        }
         job.assignedWorkers = assignedWorkers;
     }
 

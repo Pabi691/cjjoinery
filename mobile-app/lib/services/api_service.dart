@@ -61,6 +61,18 @@ class ApiService {
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> checkOutWorker(String workerId, String jobId) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/worker/$workerId/check-out'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'jobId': jobId}),
+    );
+    if (response.statusCode >= 400) {
+      throw Exception(_extractError(response.body));
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
   Future<void> scheduleJob(String workerId, String jobId, List<String> dates) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/worker/$workerId/jobs/$jobId/schedule'),
