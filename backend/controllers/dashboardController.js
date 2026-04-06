@@ -54,44 +54,44 @@ const getDashboardSummary = asyncHandler(async (req, res) => {
 
     const todayKey = new Date().toISOString().split('T')[0];
 
-    // Fetch all active jobs (In Progress or Scheduled) and filter to those
-    // with at least one worker who has actually checked in today (checkInTime set)
-    const activeJobs = await Job.find({ status: { $in: ['In Progress', 'Scheduled'] } })
+    // Show all In Progress jobs that have workers assigned to today's calendar
+    const activeJobs = await Job.find({ status: 'In Progress' })
         .populate('assignedWorkers', 'name')
         .lean();
 
     const runningProjects = activeJobs
         .map(job => {
             const todayEntry = (job.workCalendar || []).find(e => e.date === todayKey);
-            const todaySchedules = todayEntry?.workerSchedules || [];
+            if (!todayEntry) return null;
 
-            // Only workers who have actually checked in (checkInTime recorded)
+            const plannedWorkerIds = (todayEntry.workerIds || []).map(id => id.toString());
+            if (plannedWorkerIds.length === 0) return null;
+
+            const todaySchedules = todayEntry.workerSchedules || [];
+
+            // All workers planned for today, annotated with check-in/out times
             const checkedInToday = (job.assignedWorkers || [])
+                .filter(w => plannedWorkerIds.includes(w._id.toString()))
                 .map(w => {
                     const ws = todaySchedules.find(
                         s => s.workerId?.toString() === w._id.toString()
                     );
-                    return ws?.checkInTime
-                        ? {
-                            _id: w._id,
-                            name: w.name,
-                            checkInTime: ws.checkInTime,
-                            checkOutTime: ws.checkOutTime || null,
-                        }
-                        : null;
-                })
-                .filter(Boolean);
+                    return {
+                        _id: w._id,
+                        name: w.name,
+                        checkInTime: ws?.checkInTime || null,
+                        checkOutTime: ws?.checkOutTime || null,
+                    };
+                });
 
-            return checkedInToday.length > 0
-                ? {
-                    _id: job._id,
-                    title: job.title,
-                    status: job.status,
-                    assignedWorkers: job.assignedWorkers || [],
-                    checkedInToday,
-                    todayHours: todayEntry?.hours || 0,
-                }
-                : null;
+            return {
+                _id: job._id,
+                title: job.title,
+                status: job.status,
+                assignedWorkers: job.assignedWorkers || [],
+                checkedInToday,
+                todayHours: todayEntry?.hours || 0,
+            };
         })
         .filter(Boolean);
 

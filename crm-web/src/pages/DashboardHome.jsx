@@ -196,8 +196,9 @@ const DashboardHome = () => {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                         {stats.runningProjects.map((project) => {
-                            const checkedIn = project.checkedInToday?.length || 0;
-                            const total = project.assignedWorkers?.length || 0;
+                            const plannedToday = project.checkedInToday || [];
+                            const checkedIn = plannedToday.filter(w => w.checkInTime).length;
+                            const total = plannedToday.length;
                             return (
                                 <div
                                     key={project._id}
@@ -210,11 +211,11 @@ const DashboardHome = () => {
                                         <p className="text-sm font-bold text-gray-900 dark:text-white truncate pr-1">{project.title}</p>
                                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 whitespace-nowrap flex-shrink-0">In Progress</span>
                                     </div>
-                                    {/* Progress bar */}
+                                    {/* Progress bar — checked-in vs planned */}
                                     <div className="mb-3">
                                         <div className="flex justify-between text-[11px] text-gray-500 dark:text-gray-400 mb-1">
                                             <span>{checkedIn} on site today</span>
-                                            <span>{total} assigned</span>
+                                            <span>{total} planned today</span>
                                         </div>
                                         <div className="h-1.5 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
                                             <div
@@ -223,40 +224,37 @@ const DashboardHome = () => {
                                             ></div>
                                         </div>
                                     </div>
-                                    {/* Checked-in worker avatars */}
-                                    {checkedIn > 0 ? (
-                                        <div className="flex flex-col gap-1.5">
-                                            {project.checkedInToday.slice(0, 4).map((w) => {
-                                                const inTime = w.checkInTime
-                                                    ? DateTime.fromISO(w.checkInTime).toLocaleString(DateTime.TIME_SIMPLE)
-                                                    : null;
-                                                const outTime = w.checkOutTime
-                                                    ? DateTime.fromISO(w.checkOutTime).toLocaleString(DateTime.TIME_SIMPLE)
-                                                    : null;
-                                                return (
-                                                    <span key={w._id} className="flex items-center gap-1.5 text-[11px] bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 px-2 py-1 rounded-full font-semibold">
-                                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block flex-shrink-0"></span>
-                                                        <span>{w.name}</span>
-                                                        {inTime && (
-                                                            <span className="text-[10px] text-emerald-500 dark:text-emerald-400 font-medium">
-                                                                in {inTime}
-                                                            </span>
-                                                        )}
-                                                        {outTime && (
-                                                            <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">
-                                                                · out {outTime}
-                                                            </span>
-                                                        )}
-                                                    </span>
-                                                );
-                                            })}
-                                            {checkedIn > 4 && (
-                                                <span className="text-[11px] text-gray-400">+{checkedIn - 4} more</span>
-                                            )}
-                                        </div>
-                                    ) : (
-                                        <p className="text-[11px] text-gray-400 dark:text-gray-500 italic">No check-ins yet today</p>
-                                    )}
+                                    {/* Worker list — all planned, highlight checked-in */}
+                                    <div className="flex flex-col gap-1.5">
+                                        {plannedToday.slice(0, 4).map((w) => {
+                                            const inTime = w.checkInTime
+                                                ? DateTime.fromISO(w.checkInTime).toLocaleString(DateTime.TIME_SIMPLE)
+                                                : null;
+                                            const outTime = w.checkOutTime
+                                                ? DateTime.fromISO(w.checkOutTime).toLocaleString(DateTime.TIME_SIMPLE)
+                                                : null;
+                                            return (
+                                                <span key={w._id} className={`flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-full font-semibold ${
+                                                    inTime
+                                                        ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300'
+                                                        : 'bg-gray-100 dark:bg-gray-700/40 text-gray-500 dark:text-gray-400'
+                                                }`}>
+                                                    <span className={`w-1.5 h-1.5 rounded-full inline-block flex-shrink-0 ${inTime ? 'bg-emerald-400' : 'bg-gray-400'}`}></span>
+                                                    <span>{w.name}</span>
+                                                    {inTime ? (
+                                                        <span className="text-[10px] text-emerald-500 dark:text-emerald-400 font-medium">
+                                                            in {inTime}{outTime ? ` · out ${outTime}` : ''}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-[10px] text-gray-400 font-medium">not yet</span>
+                                                    )}
+                                                </span>
+                                            );
+                                        })}
+                                        {plannedToday.length > 4 && (
+                                            <span className="text-[11px] text-gray-400">+{plannedToday.length - 4} more</span>
+                                        )}
+                                    </div>
                                 </div>
                             );
                         })}
