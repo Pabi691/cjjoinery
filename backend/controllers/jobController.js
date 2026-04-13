@@ -71,10 +71,12 @@ const normalizeWorkerSchedules = (rawSchedules = []) => {
         seen.add(wid);
         const h = calcWorkerHours(s.startTime, s.endTime);
         result.push({
-            workerId:  wid,
-            startTime: s.startTime || '',
-            endTime:   s.endTime   || '',
-            hours:     h > 0 ? h : (Number.isFinite(Number(s.hours)) && Number(s.hours) > 0 ? Number(s.hours) : 0),
+            workerId:     wid,
+            startTime:    s.startTime    || '',
+            endTime:      s.endTime      || '',
+            hours:        h > 0 ? h : (Number.isFinite(Number(s.hours)) && Number(s.hours) > 0 ? Number(s.hours) : 0),
+            checkInTime:  s.checkInTime  || null,
+            checkOutTime: s.checkOutTime || null,
         });
     }
     return result;

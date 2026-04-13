@@ -88,10 +88,12 @@ const normalizeWorkerSchedules = (raw = []) => {
         seen.add(wid);
         const h = calcWorkerHours(ws.startTime, ws.endTime);
         acc.push({
-            workerId:  wid,
-            startTime: ws.startTime || '',
-            endTime:   ws.endTime   || '',
-            hours:     h > 0 ? h : (Number(ws.hours) || 0),
+            workerId:     wid,
+            startTime:    ws.startTime    || '',
+            endTime:      ws.endTime      || '',
+            hours:        h > 0 ? h : (Number(ws.hours) || 0),
+            checkInTime:  ws.checkInTime  || null,
+            checkOutTime: ws.checkOutTime || null,
         });
         return acc;
     }, []);
@@ -332,18 +334,17 @@ const ProjectDetails = () => {
 
         const normalizedCalendar = normalizeWorkCalendar(nextCalendar);
         const newTotal = getTotalPlannedHours(normalizedCalendar);
-        const currentTotal = getTotalPlannedHours(project.workCalendar || []);
-
-        if (project.expectedHours && newTotal > project.expectedHours && newTotal > currentTotal) {
-            setSaveMessage(`Error: Planned Hours (${newTotal}h) cannot exceed Expected Time (${project.expectedHours}h).`);
-            return;
-        }
 
         setProject({
             ...project,
             workCalendar: normalizedCalendar
         });
-        setSaveMessage('');
+
+        if (project.expectedHours && newTotal > project.expectedHours) {
+            setSaveMessage(`Warning: Planned Hours (${newTotal.toFixed(2)}h) exceed Expected Time (${project.expectedHours}h).`);
+        } else {
+            setSaveMessage('');
+        }
     };
 
     const updateWorkerTime = (workerId, field, value) => {
@@ -416,10 +417,12 @@ const ProjectDetails = () => {
                 workCalendar: normalizeWorkCalendar(project.workCalendar || []).map((entry) => ({
                     ...entry,
                     workerSchedules: (entry.workerSchedules || []).map((ws) => ({
-                        workerId:  ws.workerId,
-                        startTime: ws.startTime || '',
-                        endTime:   ws.endTime   || '',
-                        hours:     ws.hours     || 0,
+                        workerId:     ws.workerId,
+                        startTime:    ws.startTime    || '',
+                        endTime:      ws.endTime      || '',
+                        hours:        ws.hours        || 0,
+                        checkInTime:  ws.checkInTime  || null,
+                        checkOutTime: ws.checkOutTime || null,
                     })),
                 })),
             };
@@ -475,6 +478,68 @@ const ProjectDetails = () => {
         ))
         : logsForSelectedDate;
     const calendarDays = buildCalendarDays(calendarMonth);
+
+    // Per-worker stats across the whole project
+    const workerProjectStats = project.assignedWorkers.map((worker) => {
+        const workerId = resolveWorkerId(worker);
+        const fullWorker = allWorkers.find(
+            (w) => (w._id?.toString() || w.id?.toString()) === workerId
+        );
+
+        const assignedEntries = (project.workCalendar || []).filter((entry) =>
+            (entry.workerIds || []).includes(workerId)
+        );
+
+        let plannedHours = 0;
+        let checkedInDays = 0;
+        let actualHours = 0;
+        let lastCheckIn = null;
+        let lastCheckOut = null;
+
+        for (const entry of assignedEntries) {
+            const ws = (entry.workerSchedules || []).find((s) => s.workerId === workerId);
+            if (ws) {
+                plannedHours += ws.hours || 0;
+                if (ws.checkInTime) {
+                    checkedInDays++;
+                    if (!lastCheckIn || new Date(ws.checkInTime) > new Date(lastCheckIn)) {
+                        lastCheckIn = ws.checkInTime;
+                    }
+                }
+                if (ws.checkOutTime) {
+                    if (!lastCheckOut || new Date(ws.checkOutTime) > new Date(lastCheckOut)) {
+                        lastCheckOut = ws.checkOutTime;
+                    }
+                }
+                if (ws.checkInTime && ws.checkOutTime) {
+                    const diff = (new Date(ws.checkOutTime) - new Date(ws.checkInTime)) / 3600000;
+                    if (diff > 0) actualHours += diff;
+                }
+            }
+        }
+
+        const logCount = (project.dailyLogs || []).filter((log) => {
+            const logWid = resolveWorkerId(log.workerId);
+            return logWid ? logWid === workerId : log.workerName === (worker?.name || fullWorker?.name);
+        }).length;
+
+        return {
+            workerId,
+            name:         worker?.name          || fullWorker?.name         || 'Worker',
+            email:        fullWorker?.email      || '',
+            phone:        fullWorker?.phone      || '',
+            skills:       fullWorker?.skills     || [],
+            hourlyRate:   fullWorker?.hourlyRate || 0,
+            availability: fullWorker?.availability || 'Available',
+            daysAssigned:  assignedEntries.length,
+            checkedInDays,
+            plannedHours:  Math.round(plannedHours  * 100) / 100,
+            actualHours:   Math.round(actualHours   * 100) / 100,
+            lastCheckIn,
+            lastCheckOut,
+            logCount,
+        };
+    });
 
     return (
         <div className="p-6 max-w-7xl mx-auto space-y-8">
@@ -534,17 +599,33 @@ const ProjectDetails = () => {
                                         className="w-full rounded-2xl border border-white/50 dark:border-white/10 bg-white/70 dark:bg-slate-900/40 px-4 py-3 text-sm font-medium text-gray-800 dark:text-gray-100"
                                     />
                                 </label>
-                                <div className="rounded-2xl border border-white/50 dark:border-white/10 bg-gradient-to-br from-amber-50 to-white dark:from-amber-900/20 dark:to-slate-900/50 px-4 py-3">
-                                    <div className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                        Total Planned Hours
-                                    </div>
-                                    <div className="mt-1 text-2xl font-extrabold text-gray-900 dark:text-white">
-                                        {totalPlannedHours}h
-                                    </div>
-                                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                                        Auto-calculated from the calendar
-                                    </div>
-                                </div>
+                                {(() => {
+                                    const isOver = project.expectedHours && totalPlannedHours > project.expectedHours;
+                                    const overage = isOver ? (totalPlannedHours - project.expectedHours).toFixed(2) : null;
+                                    return (
+                                        <div className={`rounded-2xl border px-4 py-3 ${
+                                            isOver
+                                                ? 'border-red-400 dark:border-red-500 bg-gradient-to-br from-red-50 to-white dark:from-red-900/20 dark:to-slate-900/50'
+                                                : 'border-white/50 dark:border-white/10 bg-gradient-to-br from-amber-50 to-white dark:from-amber-900/20 dark:to-slate-900/50'
+                                        }`}>
+                                            <div className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                                Total Planned Hours
+                                            </div>
+                                            <div className={`mt-1 text-2xl font-extrabold ${isOver ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'}`}>
+                                                {Number(totalPlannedHours).toFixed(2)}h
+                                            </div>
+                                            {isOver ? (
+                                                <div className="text-xs text-red-500 dark:text-red-400 font-medium">
+                                                    +{overage}h over expected {project.expectedHours}h
+                                                </div>
+                                            ) : (
+                                                <div className="text-xs text-gray-500 dark:text-gray-400">
+                                                    Auto-calculated from the calendar
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
                             </div>
 
                             <div className="rounded-[24px] border border-white/50 dark:border-white/10 bg-slate-50/70 dark:bg-slate-900/30 p-5">
@@ -752,27 +833,56 @@ const ProjectDetails = () => {
                                                     </div>
 
                                                     {active && (
-                                                        <div className="grid grid-cols-2 gap-3">
-                                                            <label className="block">
-                                                                <span className="block text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Start Time</span>
-                                                                <input
-                                                                    type="time"
-                                                                    value={ws?.startTime || ''}
-                                                                    disabled={!isSelectedDateEditable}
-                                                                    onChange={(e) => updateWorkerTime(workerId, 'startTime', e.target.value)}
-                                                                    className="w-full rounded-xl border border-white/50 dark:border-white/10 bg-white dark:bg-slate-900/50 px-3 py-2 text-sm font-medium text-gray-800 dark:text-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                                                                />
-                                                            </label>
-                                                            <label className="block">
-                                                                <span className="block text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">End Time</span>
-                                                                <input
-                                                                    type="time"
-                                                                    value={ws?.endTime || ''}
-                                                                    disabled={!isSelectedDateEditable}
-                                                                    onChange={(e) => updateWorkerTime(workerId, 'endTime', e.target.value)}
-                                                                    className="w-full rounded-xl border border-white/50 dark:border-white/10 bg-white dark:bg-slate-900/50 px-3 py-2 text-sm font-medium text-gray-800 dark:text-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                                                                />
-                                                            </label>
+                                                        <div>
+                                                            <div className="grid grid-cols-2 gap-3">
+                                                                <label className="block">
+                                                                    <span className="block text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Planned Start</span>
+                                                                    <input
+                                                                        type="time"
+                                                                        value={ws?.startTime || ''}
+                                                                        disabled={!isSelectedDateEditable}
+                                                                        onChange={(e) => updateWorkerTime(workerId, 'startTime', e.target.value)}
+                                                                        className="w-full rounded-xl border border-white/50 dark:border-white/10 bg-white dark:bg-slate-900/50 px-3 py-2 text-sm font-medium text-gray-800 dark:text-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                    />
+                                                                </label>
+                                                                <label className="block">
+                                                                    <span className="block text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Planned End</span>
+                                                                    <input
+                                                                        type="time"
+                                                                        value={ws?.endTime || ''}
+                                                                        disabled={!isSelectedDateEditable}
+                                                                        onChange={(e) => updateWorkerTime(workerId, 'endTime', e.target.value)}
+                                                                        className="w-full rounded-xl border border-white/50 dark:border-white/10 bg-white dark:bg-slate-900/50 px-3 py-2 text-sm font-medium text-gray-800 dark:text-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                    />
+                                                                </label>
+                                                            </div>
+                                                            {(ws?.checkInTime || ws?.checkOutTime) && (
+                                                                <div className="mt-3 pt-3 border-t border-white/30 dark:border-white/10 flex flex-wrap gap-2">
+                                                                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 w-full">Actual Attendance</span>
+                                                                    {ws.checkInTime && (
+                                                                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300">
+                                                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span>
+                                                                            Check-in: {DateTime.fromISO(ws.checkInTime).toLocaleString(DateTime.TIME_SIMPLE)}
+                                                                        </span>
+                                                                    )}
+                                                                    {ws.checkOutTime && (
+                                                                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-semibold bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
+                                                                            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 inline-block"></span>
+                                                                            Check-out: {DateTime.fromISO(ws.checkOutTime).toLocaleString(DateTime.TIME_SIMPLE)}
+                                                                        </span>
+                                                                    )}
+                                                                    {ws.checkInTime && ws.checkOutTime && (() => {
+                                                                        const inM = DateTime.fromISO(ws.checkInTime);
+                                                                        const outM = DateTime.fromISO(ws.checkOutTime);
+                                                                        const diff = outM.diff(inM, 'hours').hours;
+                                                                        return diff > 0 ? (
+                                                                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-semibold bg-violet-50 text-violet-700 dark:bg-violet-900/20 dark:text-violet-300">
+                                                                                {diff.toFixed(2)}h on site
+                                                                            </span>
+                                                                        ) : null;
+                                                                    })()}
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     )}
                                                 </div>
@@ -804,12 +914,17 @@ const ProjectDetails = () => {
                             </div>
 
                             {saveMessage && (
-                                <div className={`mt-4 rounded-2xl px-4 py-3 text-sm font-medium ${
+                                <div className={`mt-4 rounded-2xl px-4 py-3 text-sm font-medium flex items-start gap-2 ${
                                     saveMessage.includes('Failed') || saveMessage.includes('Error')
-                                        ? 'bg-rose-50 text-rose-700 dark:bg-rose-900/20 dark:text-rose-300'
-                                        : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300'
+                                        ? 'bg-rose-50 text-rose-700 dark:bg-rose-900/20 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
+                                        : saveMessage.includes('Warning')
+                                        ? 'bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300 border border-amber-300 dark:border-amber-700 animate-pulse'
+                                        : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
                                 }`}>
-                                    {saveMessage}
+                                    {saveMessage.includes('Warning') && (
+                                        <span className="text-amber-500 dark:text-amber-400 mt-0.5 shrink-0">&#9888;</span>
+                                    )}
+                                    <span>{saveMessage}</span>
                                 </div>
                             )}
 
@@ -933,14 +1048,34 @@ const ProjectDetails = () => {
                                 Workers on this date
                             </div>
                             <div className="flex flex-wrap gap-2">
-                                {selectedWorkers.length ? selectedWorkers.map((worker) => (
-                                    <span
-                                        key={resolveWorkerId(worker)}
-                                        className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300"
-                                    >
-                                        {worker?.name || 'Worker'}
-                                    </span>
-                                )) : (
+                                {selectedWorkers.length ? selectedWorkers.map((worker) => {
+                                    const wid = resolveWorkerId(worker);
+                                    const ws = (selectedEntry.workerSchedules || []).find((s) => s.workerId === wid);
+                                    const inTime = ws?.checkInTime
+                                        ? DateTime.fromISO(ws.checkInTime).toLocaleString(DateTime.TIME_SIMPLE)
+                                        : null;
+                                    const outTime = ws?.checkOutTime
+                                        ? DateTime.fromISO(ws.checkOutTime).toLocaleString(DateTime.TIME_SIMPLE)
+                                        : null;
+                                    return (
+                                        <span
+                                            key={wid}
+                                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${
+                                                inTime
+                                                    ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300'
+                                                    : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'
+                                            }`}
+                                        >
+                                            <span className={`w-1.5 h-1.5 rounded-full inline-block flex-shrink-0 ${inTime ? 'bg-emerald-400' : 'bg-gray-400'}`}></span>
+                                            {worker?.name || 'Worker'}
+                                            {inTime && (
+                                                <span className="font-medium text-emerald-600 dark:text-emerald-400">
+                                                    in {inTime}{outTime ? ` · out ${outTime}` : ''}
+                                                </span>
+                                            )}
+                                        </span>
+                                    );
+                                }) : (
                                     <span className="text-sm text-gray-500 dark:text-gray-400 italic">No workers planned for this date yet.</span>
                                 )}
                             </div>
@@ -1045,6 +1180,194 @@ const ProjectDetails = () => {
                     </div>
                 </div>
             </div>
+
+            {/* ── Worker Summary Table ── */}
+            {workerProjectStats.length > 0 && (
+                <div className="glass-panel rounded-3xl shadow-sm overflow-hidden">
+                    <div className="p-6 border-b border-gray-100/50 dark:border-gray-700/50">
+                        <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-purple-400 flex items-center justify-center shadow-sm">
+                                <Users size={18} className="text-white" />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Team Attendance &amp; Stats</h3>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">All workers assigned to this project with their time &amp; activity records</p>
+                            </div>
+                            <span className="ml-auto text-xs font-bold px-2.5 py-1 rounded-full bg-violet-50 text-violet-700 dark:bg-violet-900/20 dark:text-violet-300">
+                                {workerProjectStats.length} worker{workerProjectStats.length !== 1 ? 's' : ''}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="border-b border-gray-100 dark:border-gray-700/50 bg-gray-50/60 dark:bg-white/[0.03]">
+                                    <th className="text-left px-5 py-3.5 text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 whitespace-nowrap">Worker</th>
+                                    <th className="text-left px-5 py-3.5 text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 whitespace-nowrap">Contact</th>
+                                    <th className="text-left px-5 py-3.5 text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 whitespace-nowrap">Skills</th>
+                                    <th className="text-right px-5 py-3.5 text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 whitespace-nowrap">Rate</th>
+                                    <th className="text-center px-5 py-3.5 text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 whitespace-nowrap">Days<br/>Assigned</th>
+                                    <th className="text-center px-5 py-3.5 text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 whitespace-nowrap">Days<br/>Checked In</th>
+                                    <th className="text-right px-5 py-3.5 text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 whitespace-nowrap">Planned<br/>Hours</th>
+                                    <th className="text-right px-5 py-3.5 text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 whitespace-nowrap">Actual<br/>Hours</th>
+                                    <th className="text-left px-5 py-3.5 text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 whitespace-nowrap">Last Check-in</th>
+                                    <th className="text-left px-5 py-3.5 text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 whitespace-nowrap">Last Check-out</th>
+                                    <th className="text-center px-5 py-3.5 text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 whitespace-nowrap">Logs</th>
+                                    <th className="text-center px-5 py-3.5 text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 whitespace-nowrap">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100/70 dark:divide-gray-700/30">
+                                {workerProjectStats.map((w) => {
+                                    const attendancePct = w.daysAssigned > 0
+                                        ? Math.round((w.checkedInDays / w.daysAssigned) * 100)
+                                        : 0;
+                                    const availStyle = w.availability === 'Available'
+                                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300'
+                                        : w.availability === 'Busy'
+                                            ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300'
+                                            : 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300';
+
+                                    return (
+                                        <tr
+                                            key={w.workerId}
+                                            onClick={() => navigate(`/workers/${w.workerId}`)}
+                                            className="hover:bg-white/60 dark:hover:bg-white/5 transition-colors cursor-pointer"
+                                        >
+                                            {/* Worker */}
+                                            <td className="px-5 py-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-100 to-purple-100 dark:from-violet-900/40 dark:to-purple-900/40 flex items-center justify-center text-violet-700 dark:text-violet-300 font-black text-sm flex-shrink-0">
+                                                        {w.name.charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <span className="font-bold text-gray-900 dark:text-white whitespace-nowrap">{w.name}</span>
+                                                </div>
+                                            </td>
+
+                                            {/* Contact */}
+                                            <td className="px-5 py-4">
+                                                <div className="space-y-0.5">
+                                                    {w.email && <div className="text-xs text-gray-600 dark:text-gray-300 truncate max-w-[180px]">{w.email}</div>}
+                                                    {w.phone && <div className="text-xs text-gray-400 dark:text-gray-500">{w.phone}</div>}
+                                                    {!w.email && !w.phone && <span className="text-xs text-gray-400 italic">—</span>}
+                                                </div>
+                                            </td>
+
+                                            {/* Skills */}
+                                            <td className="px-5 py-4">
+                                                <div className="flex flex-wrap gap-1 max-w-[180px]">
+                                                    {w.skills.length ? w.skills.map((s) => (
+                                                        <span key={s} className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-300 whitespace-nowrap">
+                                                            {s}
+                                                        </span>
+                                                    )) : <span className="text-xs text-gray-400 italic">—</span>}
+                                                </div>
+                                            </td>
+
+                                            {/* Rate */}
+                                            <td className="px-5 py-4 text-right">
+                                                <span className="font-semibold text-gray-800 dark:text-gray-100 whitespace-nowrap">
+                                                    {w.hourlyRate ? `£${w.hourlyRate}/hr` : '—'}
+                                                </span>
+                                            </td>
+
+                                            {/* Days Assigned */}
+                                            <td className="px-5 py-4 text-center">
+                                                <span className="text-lg font-black text-gray-900 dark:text-white">{w.daysAssigned}</span>
+                                            </td>
+
+                                            {/* Days Checked In */}
+                                            <td className="px-5 py-4 text-center">
+                                                <div className="flex flex-col items-center gap-1">
+                                                    <span className={`text-lg font-black ${w.checkedInDays > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>
+                                                        {w.checkedInDays}
+                                                    </span>
+                                                    {w.daysAssigned > 0 && (
+                                                        <div className="w-12 h-1 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
+                                                            <div
+                                                                className="h-full rounded-full bg-emerald-400"
+                                                                style={{ width: `${attendancePct}%` }}
+                                                            />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </td>
+
+                                            {/* Planned Hours */}
+                                            <td className="px-5 py-4 text-right">
+                                                <span className="font-semibold text-gray-800 dark:text-gray-100">
+                                                    {w.plannedHours > 0 ? `${w.plannedHours}h` : '—'}
+                                                </span>
+                                            </td>
+
+                                            {/* Actual Hours */}
+                                            <td className="px-5 py-4 text-right">
+                                                {w.actualHours > 0 ? (
+                                                    <span className={`font-bold ${w.actualHours >= w.plannedHours ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                                                        {w.actualHours.toFixed(2)}h
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-gray-400 dark:text-gray-500">—</span>
+                                                )}
+                                            </td>
+
+                                            {/* Last Check-in */}
+                                            <td className="px-5 py-4">
+                                                {w.lastCheckIn ? (
+                                                    <div className="space-y-0.5">
+                                                        <div className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                                                            {DateTime.fromISO(w.lastCheckIn).toLocaleString(DateTime.TIME_SIMPLE)}
+                                                        </div>
+                                                        <div className="text-[10px] text-gray-400">
+                                                            {DateTime.fromISO(w.lastCheckIn).toLocaleString(DateTime.DATE_MED)}
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-xs text-gray-400 dark:text-gray-500">Not yet</span>
+                                                )}
+                                            </td>
+
+                                            {/* Last Check-out */}
+                                            <td className="px-5 py-4">
+                                                {w.lastCheckOut ? (
+                                                    <div className="space-y-0.5">
+                                                        <div className="text-xs font-semibold text-blue-700 dark:text-blue-300">
+                                                            {DateTime.fromISO(w.lastCheckOut).toLocaleString(DateTime.TIME_SIMPLE)}
+                                                        </div>
+                                                        <div className="text-[10px] text-gray-400">
+                                                            {DateTime.fromISO(w.lastCheckOut).toLocaleString(DateTime.DATE_MED)}
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-xs text-gray-400 dark:text-gray-500">Not yet</span>
+                                                )}
+                                            </td>
+
+                                            {/* Log count */}
+                                            <td className="px-5 py-4 text-center">
+                                                <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold ${
+                                                    w.logCount > 0
+                                                        ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+                                                        : 'bg-gray-100 text-gray-400 dark:bg-gray-700/40 dark:text-gray-500'
+                                                }`}>
+                                                    {w.logCount}
+                                                </span>
+                                            </td>
+
+                                            {/* Availability */}
+                                            <td className="px-5 py-4 text-center">
+                                                <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${availStyle}`}>
+                                                    {w.availability}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
