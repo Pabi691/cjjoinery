@@ -859,26 +859,26 @@ class _HomeStatusCalendar extends StatelessWidget {
 
               return Expanded(
                 child: Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 3),
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
+                  margin: const EdgeInsets.symmetric(horizontal: 2),
+                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
                   decoration: BoxDecoration(
-                    color: _statusColor(status).withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(14),
+                    color: _statusColor(status).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: isToday
                           ? AppColors.amber
-                          : _statusColor(status).withOpacity(0.2),
+                          : _statusColor(status).withValues(alpha: 0.2),
                     ),
                   ),
                   child: Column(
                     children: [
                       Text(
-                        DateFormat('E').format(day),
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppColors.textMuted,
-                              fontWeight: FontWeight.w700,
-                            ),
+                        DateFormat('EEEEE').format(day),
+                        style: const TextStyle(
+                          color: AppColors.textMuted,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 11,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -886,13 +886,13 @@ class _HomeStatusCalendar extends StatelessWidget {
                         style: const TextStyle(
                           color: AppColors.textPrimary,
                           fontWeight: FontWeight.w700,
-                          fontSize: 16,
+                          fontSize: 15,
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 6),
                       Container(
-                        width: 10,
-                        height: 10,
+                        width: 8,
+                        height: 8,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: _statusColor(status),
@@ -1362,9 +1362,9 @@ class _StatusTabState extends State<_StatusTab> {
                   itemCount: calendarDays.length,
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 7,
-                    mainAxisSpacing: 8,
-                    crossAxisSpacing: 8,
-                    childAspectRatio: 0.9,
+                    mainAxisSpacing: 5,
+                    crossAxisSpacing: 5,
+                    childAspectRatio: 0.68,
                   ),
                   itemBuilder: (context, index) {
                     final day = calendarDays[index];
@@ -1373,6 +1373,14 @@ class _StatusTabState extends State<_StatusTab> {
                     final isToday = _dateKey(day) == _dateKey(DateTime.now());
                     final isSelected = _dateKey(day) == _dateKey(_selectedDate);
                     final isPast = _isPastDate(day);
+
+                    String shortStatus(String s) {
+                      switch (s.toLowerCase()) {
+                        case 'available': return 'Avail.';
+                        case 'on leave': return 'Leave';
+                        default: return s;
+                      }
+                    }
 
                     return GestureDetector(
                       onTap: isPast
@@ -1384,12 +1392,12 @@ class _StatusTabState extends State<_StatusTab> {
                               });
                             },
                       child: Container(
-                        padding: const EdgeInsets.all(8),
+                        padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 6),
                         decoration: BoxDecoration(
                           color: _statusColor(status).withOpacity(
                             isPast ? 0.04 : (inMonth ? 0.14 : 0.06),
                           ),
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(10),
                           border: Border.all(
                             color: isSelected
                                 ? AppColors.amber
@@ -1400,11 +1408,12 @@ class _StatusTabState extends State<_StatusTab> {
                           ),
                         ),
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
                               '${day.day}',
                               style: TextStyle(
+                                fontSize: 12,
                                 color: inMonth
                                     ? (isPast
                                         ? AppColors.textMuted
@@ -1413,21 +1422,21 @@ class _StatusTabState extends State<_StatusTab> {
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
-                            const Spacer(),
                             if (isPast)
                               const Icon(
                                 Icons.lock_outline_rounded,
-                                size: 12,
+                                size: 11,
                                 color: AppColors.textMuted,
                               )
                             else
                               Text(
-                                status,
+                                shortStatus(status),
                                 maxLines: 2,
+                                textAlign: TextAlign.center,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  fontSize: 10,
-                                  height: 1.1,
+                                  fontSize: 9,
+                                  height: 1.2,
                                   color: _statusColor(status),
                                   fontWeight: FontWeight.w700,
                                 ),
