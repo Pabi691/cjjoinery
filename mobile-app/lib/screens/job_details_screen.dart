@@ -495,17 +495,21 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
                     const SizedBox(height: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 4),
+                          horizontal: 12, vertical: 5),
                       decoration: BoxDecoration(
-                        color: _statusColor(status).withOpacity(0.15),
+                        color: _statusColor(status).withValues(alpha: 0.22),
                         borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: _statusColor(status).withValues(alpha: 0.5),
+                          width: 1,
+                        ),
                       ),
                       child: Text(
                         status,
                         style: TextStyle(
                           color: _statusColor(status),
                           fontSize: 12,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
@@ -719,29 +723,33 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
                                         child: AnimatedContainer(
                                           duration: const Duration(
                                               milliseconds: 200),
-                                          height: 46,
+                                          height: 50,
                                           margin: const EdgeInsets.all(2),
                                           decoration: BoxDecoration(
                                             color: isSelected
                                                 ? AppColors.amber
-                                                : isToday
-                                                    ? AppColors.amber
-                                                        .withOpacity(0.12)
-                                                    : Colors.transparent,
+                                                : isActive
+                                                    ? AppColors.amber.withValues(alpha: 0.1)
+                                                    : isToday
+                                                        ? AppColors.amber.withValues(alpha: 0.06)
+                                                        : Colors.transparent,
                                             borderRadius:
                                                 BorderRadius.circular(12),
-                                            border: isToday && !isSelected
-                                                ? Border.all(
-                                                    color: AppColors.amber
-                                                        .withOpacity(0.5),
-                                                    width: 1.5)
-                                                : null,
+                                            border: Border.all(
+                                              color: isSelected
+                                                  ? AppColors.amber
+                                                  : isActive && !isToday
+                                                      ? AppColors.amber.withValues(alpha: 0.35)
+                                                      : isToday
+                                                          ? AppColors.amber.withValues(alpha: 0.5)
+                                                          : Colors.transparent,
+                                              width: isSelected || isToday ? 1.5 : 1,
+                                            ),
                                           ),
                                           child: Opacity(
                                             opacity: isActive ? 1.0 : 0.3,
                                             child: Column(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
+                                            mainAxisAlignment: MainAxisAlignment.center,
                                             children: [
                                               Text(
                                                 '$dayNumber',
@@ -749,35 +757,22 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
                                                   color: isSelected
                                                       ? AppColors.darkNavy
                                                       : AppColors.textPrimary,
-                                                  fontWeight: isSelected ||
-                                                          isToday
+                                                  fontWeight: isSelected || isToday || isActive
                                                       ? FontWeight.w700
-                                                      : FontWeight.w500,
+                                                      : FontWeight.w400,
                                                   fontSize: 14,
                                                 ),
                                               ),
-                                              if (isActive && !isSelected)
+                                              if (isActive)
                                                 Container(
-                                                  margin:
-                                                      const EdgeInsets.only(
-                                                          top: 3),
-                                                  width: 5,
-                                                  height: 5,
+                                                  margin: const EdgeInsets.only(top: 4),
+                                                  width: 18,
+                                                  height: 3,
                                                   decoration: BoxDecoration(
-                                                    color: AppColors.amber,
-                                                    shape: BoxShape.circle,
-                                                  ),
-                                                ),
-                                              if (isActive && isSelected)
-                                                Container(
-                                                  margin:
-                                                      const EdgeInsets.only(
-                                                          top: 3),
-                                                  width: 5,
-                                                  height: 5,
-                                                  decoration: BoxDecoration(
-                                                    color: AppColors.darkNavy,
-                                                    shape: BoxShape.circle,
+                                                    color: isSelected
+                                                        ? AppColors.darkNavy.withValues(alpha: 0.6)
+                                                        : AppColors.amber,
+                                                    borderRadius: BorderRadius.circular(2),
                                                   ),
                                                 ),
                                             ],

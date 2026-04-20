@@ -117,7 +117,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           jobs: _jobs,
           loading: _loading,
           error: _error,
-          onRefresh: _fetchJobs),
+          onRefresh: _fetchJobs,
+          onSeeAll: () => setState(() => _currentIndex = 1)),
       _JobsTab(
           jobs: _jobs,
           loading: _loading,
@@ -128,9 +129,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ];
 
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: pages,
+      body: SafeArea(
+        top: true,
+        bottom: false,
+        child: IndexedStack(
+          index: _currentIndex,
+          children: pages,
+        ),
       ),
       extendBody: true,
       bottomNavigationBar: Container(
@@ -216,6 +221,7 @@ class _HomeTab extends StatefulWidget {
     required this.loading,
     required this.error,
     required this.onRefresh,
+    required this.onSeeAll,
   });
 
   final Map<String, dynamic> worker;
@@ -223,6 +229,7 @@ class _HomeTab extends StatefulWidget {
   final bool loading;
   final String error;
   final Future<void> Function() onRefresh;
+  final VoidCallback onSeeAll;
 
   @override
   State<_HomeTab> createState() => _HomeTabState();
@@ -415,7 +422,7 @@ class _HomeTabState extends State<_HomeTab> {
         children: [
           // Hero header
           Container(
-            padding: const EdgeInsets.fromLTRB(24, 56, 24, 32),
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
             decoration: const BoxDecoration(gradient: AppGradients.hero),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -722,7 +729,7 @@ class _HomeTabState extends State<_HomeTab> {
                 Text('Upcoming Jobs', style: Theme.of(context).textTheme.titleLarge),
                 if (jobs.length > 3)
                   TextButton(
-                    onPressed: () {},
+                    onPressed: widget.onSeeAll,
                     child: const Text('See All', style: TextStyle(color: AppColors.amber, fontSize: 13)),
                   ),
               ],
@@ -936,7 +943,7 @@ class _JobsTab extends StatelessWidget {
         children: [
           // Header
           Container(
-            padding: const EdgeInsets.fromLTRB(24, 56, 24, 24),
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
             decoration: const BoxDecoration(
               gradient: AppGradients.hero,
             ),
@@ -1123,7 +1130,7 @@ class _StatusTabState extends State<_StatusTab> {
       children: [
         // Header
         Container(
-          padding: const EdgeInsets.fromLTRB(24, 56, 24, 24),
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
           decoration: const BoxDecoration(gradient: AppGradients.hero),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1569,7 +1576,7 @@ class _ProfileTab extends StatelessWidget {
       children: [
         // Header with avatar
         Container(
-          padding: const EdgeInsets.fromLTRB(24, 56, 24, 32),
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
           decoration: const BoxDecoration(gradient: AppGradients.hero),
           child: Column(
             children: [
@@ -1851,17 +1858,21 @@ class _JobCard extends StatelessWidget {
                     const SizedBox(height: 6),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 3),
+                          horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: _statusColor(status).withOpacity(0.12),
+                        color: _statusColor(status).withValues(alpha: 0.18),
                         borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: _statusColor(status).withValues(alpha: 0.4),
+                          width: 1,
+                        ),
                       ),
                       child: Text(
                         status,
                         style: TextStyle(
                           color: _statusColor(status),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
