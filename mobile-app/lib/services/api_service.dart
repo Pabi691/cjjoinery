@@ -7,7 +7,8 @@ class ApiService {
 
   final http.Client _client;
 
-  static const String baseUrl = 'https://cjjoinery-backend.vercel.app/api';
+  // static const String baseUrl = 'https://cjjoinery-backend.vercel.app/api';
+  static const String baseUrl = 'https://cjjoinery.kyleinfotech.co.in/api';
   static String get baseHost =>
       baseUrl.replaceFirst(RegExp(r'/api/?$'), '');
 
