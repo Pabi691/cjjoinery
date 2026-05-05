@@ -108,6 +108,7 @@ jobs:
         if: env.HAS_SIGNING == 'true'
         env:
           HAS_SIGNING: ${{ secrets.IOS_P12_BASE64 != '' }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         uses: softprops/action-gh-release@v2
         with:
           files: mobile-app/build/ios/ipa/*.ipa
@@ -120,8 +121,6 @@ jobs:
             Build #${{ github.run_number }}
             
             **Install:** Download the IPA and install via Apple Configurator, TestFlight, or Xcode.
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # ── Upload to TestFlight (optional) ──
       # Uncomment this step after adding APP_STORE_CONNECT_API_KEY secrets
