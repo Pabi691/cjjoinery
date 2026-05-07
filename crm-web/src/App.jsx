@@ -11,6 +11,8 @@ import WorkerProfile from './pages/WorkerProfile';
 import Customers from './pages/Customers';
 import CustomerDetails from './pages/CustomerDetails';
 import Quotes from './pages/Quotes';
+import Enquiries from './pages/Enquiries';
+import TrashPage from './pages/Trash';
 import ErrorBoundary from './components/ErrorBoundary';
 
 function App() {
@@ -27,7 +29,9 @@ function App() {
         <Route path="workers/:id" element={<WorkerProfile />} />
         <Route path="customers" element={<ErrorBoundary><Customers /></ErrorBoundary>} />
         <Route path="customers/:id" element={<ErrorBoundary><CustomerDetails /></ErrorBoundary>} />
+        <Route path="enquiries" element={<ErrorBoundary><Enquiries /></ErrorBoundary>} />
         <Route path="invoices" element={<ErrorBoundary><Quotes /></ErrorBoundary>} />
+        <Route path="trash" element={<ErrorBoundary><TrashPage /></ErrorBoundary>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

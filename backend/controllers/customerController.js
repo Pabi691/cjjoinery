@@ -2,6 +2,7 @@ const asyncHandler = require('express-async-handler');
 const mongoose = require('mongoose');
 const User = require('../models/User');
 const Job = require('../models/Job');
+const Trash = require('../models/Trash');
 const connectDB = require('../config/db');
 
 const ensureDb = async () => {
@@ -146,6 +147,13 @@ const deleteCustomer = asyncHandler(async (req, res) => {
         res.status(400);
         throw new Error('Cannot delete a customer with associated projects. Please delete the projects first.');
     }
+
+    await Trash.create({
+        itemType: 'customer',
+        itemId: customer._id.toString(),
+        itemName: customer.name || 'Customer',
+        data: customer.toObject(),
+    });
 
     await customer.deleteOne();
     res.json({ message: 'Customer deleted successfully' });

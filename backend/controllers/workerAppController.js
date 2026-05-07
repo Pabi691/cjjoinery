@@ -412,25 +412,51 @@ const checkOutWorker = asyncHandler(async (req, res) => {
     const now = new Date();
     const schedules = job.workCalendar[entryIndex].workerSchedules || [];
     const wsIdx = schedules.findIndex(s => s.workerId?.toString() === workerId);
+
+    let checkInTime = null;
     if (wsIdx >= 0) {
+        checkInTime = schedules[wsIdx].checkInTime || null;
         schedules[wsIdx].checkOutTime = now;
     } else {
         schedules.push({ workerId, startTime: '', endTime: '', hours: 0, checkInTime: null, checkOutTime: now });
     }
+
+    // Calculate actual hours worked and daily earning
+    const worker = await Worker.findById(workerId).lean();
+    let hoursWorked = 0;
+    let dailyEarning = 0;
+
+    if (checkInTime && wsIdx >= 0) {
+        const diffMs = now.getTime() - new Date(checkInTime).getTime();
+        hoursWorked = Math.round((diffMs / 3600000) * 100) / 100;
+        if (hoursWorked > 0) {
+            schedules[wsIdx].hours = hoursWorked;
+            dailyEarning = Math.round(hoursWorked * (worker?.hourlyRate || 0) * 100) / 100;
+        }
+    }
+
     job.workCalendar[entryIndex].workerSchedules = schedules;
     job.markModified('workCalendar');
     await job.save();
 
-    const worker = await Worker.findById(workerId).lean();
     await createNotification({
         type: 'check_out',
         workerId,
         workerName: worker?.name || 'Worker',
         message: `${worker?.name || 'Worker'} checked out from ${job.title}`,
-        details: { jobId, jobTitle: job.title, date: todayKey, checkOutTime: now }
+        details: { jobId, jobTitle: job.title, date: todayKey, checkOutTime: now, hoursWorked, dailyEarning }
     });
 
-    res.json({ success: true, checkOutTime: now, jobId, date: todayKey });
+    res.json({
+        success: true,
+        checkOutTime: now,
+        checkInTime,
+        jobId,
+        date: todayKey,
+        hoursWorked,
+        dailyEarning,
+        hourlyRate: worker?.hourlyRate || 0
+    });
 });
 
 module.exports = {

@@ -3,6 +3,10 @@ const mongoose = require('mongoose');
 const quoteSchema = mongoose.Schema(
     {
         quoteNumber: { type: String, unique: true }, // Logic to auto-increment needed
+        enquiryId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Enquiry',
+        },
         leadId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Lead',

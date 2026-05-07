@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import axios from '../utils/axiosConfig';
 import Modal from '../components/Modal';
 import WorkerForm from '../components/forms/WorkerForm';
-import { UserPlus, Mail, Phone, Hammer, Clock, Trash2, ArrowRight, Users, CheckCircle2, AlertCircle } from 'lucide-react';
+import { UserPlus, Mail, Phone, Hammer, Clock, Trash2, ArrowRight, Users, CheckCircle2, AlertCircle, PoundSterling } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getAvailabilityColor, normalizeWorker } from '../utils/workerStatus';
 
@@ -17,6 +17,7 @@ const availabilityDot = (status) => {
 
 const Workers = () => {
     const [workers, setWorkers] = useState([]);
+    const [jobs, setJobs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const navigate = useNavigate();
@@ -29,8 +30,12 @@ const Workers = () => {
     const fetchWorkers = async () => {
         setLoading(true);
         try {
-            const { data } = await axios.get('/workers');
-            setWorkers((data || []).map(normalizeWorker));
+            const [wRes, jRes] = await Promise.all([
+                axios.get('/workers'),
+                axios.get('/jobs'),
+            ]);
+            setWorkers((wRes.data || []).map(normalizeWorker));
+            setJobs(jRes.data || []);
         } catch {
             setError('Failed to fetch workers');
         } finally {
@@ -55,11 +60,50 @@ const Workers = () => {
         }
     };
 
+    // Total hours from actual check-in/out only
+    const getWorkerHours = (workerId) => {
+        const id = workerId?.toString();
+        let totalHours = 0;
+        jobs.forEach(job => {
+            (job.workCalendar || []).forEach(day => {
+                (day.workerSchedules || []).forEach(ws => {
+                    if (ws.workerId?.toString() === id && (ws.checkInTime || ws.checkOutTime))
+                        totalHours += ws.hours || 0;
+                });
+            });
+        });
+        return totalHours;
+    };
+
+    const getTodayEarnings = (workerId, hourlyRate) => {
+        const id = workerId?.toString();
+        const todayKey = new Date().toISOString().slice(0, 10);
+        let todayHours = 0;
+        jobs.forEach(job => {
+            (job.workCalendar || []).forEach(day => {
+                if (!day.date?.startsWith(todayKey)) return;
+                (day.workerSchedules || []).forEach(ws => {
+                    if (ws.workerId?.toString() === id) todayHours += ws.hours || 0;
+                });
+            });
+        });
+        return { hours: todayHours, earnings: todayHours * (hourlyRate || 0) };
+    };
+
+    const getWorkerJobCount = (workerId) => {
+        const id = workerId?.toString();
+        return jobs.filter(j =>
+            (j.assignedWorkers || []).some(w => (w._id || w)?.toString() === id)
+        ).length;
+    };
+
+    const totalPayroll = workers.reduce((sum, w) => sum + (w.hourlyRate || 0) * getWorkerHours(w._id), 0);
+
     const stats = [
-        { label: 'Total Workers', value: workers.length,                                          color: 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',   icon: Users },
-        { label: 'Available',     value: workers.filter(w => w.availability === 'Available').length, color: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400', icon: CheckCircle2 },
-        { label: 'Busy',          value: workers.filter(w => w.availability === 'Busy').length,      color: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',       icon: Clock },
-        { label: 'On Leave',      value: workers.filter(w => w.availability === 'On Leave').length,  color: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400',           icon: AlertCircle },
+        { label: 'Total Workers', value: workers.length,                                             color: 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',          icon: Users },
+        { label: 'Available',     value: workers.filter(w => w.availability === 'Available').length,  color: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400',  icon: CheckCircle2 },
+        { label: 'Busy',          value: workers.filter(w => w.availability === 'Busy').length,       color: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',              icon: Clock },
+        { label: 'On Leave',      value: workers.filter(w => w.availability === 'On Leave').length,   color: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400',                 icon: AlertCircle },
     ];
 
     if (loading && workers.length === 0) return (
@@ -92,6 +136,17 @@ const Workers = () => {
                 >
                     <UserPlus size={18} /> Add Worker
                 </button>
+            </div>
+
+            {/* Payroll summary */}
+            <div className="glass-panel rounded-2xl p-4 flex items-center gap-3 w-fit">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400">
+                    <PoundSterling size={18} />
+                </div>
+                <div>
+                    <p className="text-xs font-semibold text-gray-400">Est. Total Payroll (logged hours)</p>
+                    <p className="text-2xl font-black text-gray-900 dark:text-white">£{totalPayroll.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                </div>
             </div>
 
             {/* Stats */}
@@ -183,8 +238,41 @@ const Workers = () => {
                                         )}
                                     </div>
 
+                                    {/* Earnings summary */}
+                                    {(() => {
+                                        const hrs = getWorkerHours(worker._id);
+                                        const earnings = hrs * (worker.hourlyRate || 0);
+                                        const jobCount = getWorkerJobCount(worker._id);
+                                        const today = getTodayEarnings(worker._id, worker.hourlyRate);
+                                        return (
+                                            <div className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/10 dark:to-orange-900/10 rounded-xl p-3 space-y-1 border border-amber-100 dark:border-amber-900/30 mt-3">
+                                                <div className="flex justify-between text-xs">
+                                                    <span className="text-gray-500 dark:text-gray-400">Hours logged</span>
+                                                    <span className="font-bold text-gray-700 dark:text-gray-300">{hrs.toFixed(1)} hrs</span>
+                                                </div>
+                                                <div className="flex justify-between text-xs">
+                                                    <span className="text-gray-500 dark:text-gray-400">Est. earnings</span>
+                                                    <span className="font-bold text-amber-700 dark:text-amber-300">£{earnings.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                                </div>
+                                                {today.hours > 0 && (
+                                                    <div className="flex justify-between text-xs border-t border-amber-200/60 dark:border-amber-900/40 pt-1 mt-0.5">
+                                                        <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+                                                            Today
+                                                        </span>
+                                                        <span className="font-bold text-emerald-700 dark:text-emerald-300">£{today.earnings.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                                    </div>
+                                                )}
+                                                <div className="flex justify-between text-xs">
+                                                    <span className="text-gray-500 dark:text-gray-400">Jobs assigned</span>
+                                                    <span className="font-bold text-gray-700 dark:text-gray-300">{jobCount}</span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+
                                     {/* Footer */}
-                                    <div className="mt-5 pt-4 border-t border-gray-100/70 dark:border-white/5 flex items-center justify-between">
+                                    <div className="mt-4 pt-4 border-t border-gray-100/70 dark:border-white/5 flex items-center justify-between">
                                         <button
                                             onClick={() => { setWorkerToDelete(worker); setIsDeleteModalOpen(true); }}
                                             className="flex items-center gap-1 text-xs font-medium text-red-400 hover:text-red-600 transition-colors"

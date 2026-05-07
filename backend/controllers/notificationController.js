@@ -63,4 +63,23 @@ const markNotificationRead = asyncHandler(async (req, res) => {
     res.json(notification);
 });
 
-module.exports = { getNotifications, getNotificationById, markNotificationRead };
+// @desc    Delete a single notification
+// @route   DELETE /api/notifications/:id
+// @access  Private
+const deleteNotification = asyncHandler(async (req, res) => {
+    if (!(await ensureDb())) { res.status(503); throw new Error('Database not connected'); }
+    const notification = await Notification.findByIdAndDelete(req.params.id);
+    if (!notification) { res.status(404); throw new Error('Notification not found'); }
+    res.json({ message: 'Notification deleted' });
+});
+
+// @desc    Clear all notifications
+// @route   DELETE /api/notifications
+// @access  Private
+const clearAllNotifications = asyncHandler(async (req, res) => {
+    if (!(await ensureDb())) { res.status(503); throw new Error('Database not connected'); }
+    await Notification.deleteMany({});
+    res.json({ message: 'All notifications cleared' });
+});
+
+module.exports = { getNotifications, getNotificationById, markNotificationRead, deleteNotification, clearAllNotifications };

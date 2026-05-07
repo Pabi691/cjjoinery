@@ -3,7 +3,7 @@ import axios from '../utils/axiosConfig';
 import ProjectCard from '../components/ProjectCard';
 import Modal from '../components/Modal';
 import ProjectForm from '../components/forms/ProjectForm';
-import { Plus, Filter, Trash2, Briefcase, CheckCircle2, Clock, XCircle } from 'lucide-react';
+import { Plus, Filter, Trash2, Briefcase, CheckCircle2, Clock, XCircle, PoundSterling } from 'lucide-react';
 
 const Projects = () => {
     const [projects, setProjects] = useState([]);
@@ -47,11 +47,16 @@ const Projects = () => {
 
     const filteredProjects = filter === 'All' ? projects : projects.filter(p => p.status === filter);
 
+    // Financial: sum quote totals from linked quotes
+    const totalProjectValue = projects.reduce((s, p) => s + (p.quoteId?.total || 0), 0);
+    const completedValue    = projects.filter(p => p.status === 'Completed').reduce((s, p) => s + (p.quoteId?.total || 0), 0);
+    const activeValue       = projects.filter(p => p.status === 'In Progress').reduce((s, p) => s + (p.quoteId?.total || 0), 0);
+
     const stats = [
-        { label: 'Total',       value: projects.length,                                       icon: Briefcase,    color: 'bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400' },
-        { label: 'In Progress', value: projects.filter(p => p.status === 'In Progress').length, icon: Clock,        color: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' },
-        { label: 'Completed',   value: projects.filter(p => p.status === 'Completed').length,   icon: CheckCircle2, color: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' },
-        { label: 'Cancelled',   value: projects.filter(p => p.status === 'Cancelled').length,   icon: XCircle,      color: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' },
+        { label: 'Total',       value: projects.length,                                         icon: Briefcase,    color: 'bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400' },
+        { label: 'In Progress', value: projects.filter(p => p.status === 'In Progress').length,  icon: Clock,        color: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' },
+        { label: 'Completed',   value: projects.filter(p => p.status === 'Completed').length,    icon: CheckCircle2, color: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' },
+        { label: 'Cancelled',   value: projects.filter(p => p.status === 'Cancelled').length,    icon: XCircle,      color: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' },
     ];
 
     if (loading && projects.length === 0) return (
@@ -101,6 +106,37 @@ const Projects = () => {
                     >
                         <Plus size={18} /> New Project
                     </button>
+                </div>
+            </div>
+
+            {/* Financial summary */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="glass-panel rounded-2xl p-4 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400">
+                        <PoundSterling size={18} />
+                    </div>
+                    <div>
+                        <p className="text-xs font-semibold text-gray-400">Total Project Value</p>
+                        <p className="text-2xl font-black text-gray-900 dark:text-white">£{totalProjectValue.toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
+                    </div>
+                </div>
+                <div className="glass-panel rounded-2xl p-4 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+                        <Clock size={18} />
+                    </div>
+                    <div>
+                        <p className="text-xs font-semibold text-gray-400">In Progress Value</p>
+                        <p className="text-2xl font-black text-gray-900 dark:text-white">£{activeValue.toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
+                    </div>
+                </div>
+                <div className="glass-panel rounded-2xl p-4 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
+                        <CheckCircle2 size={18} />
+                    </div>
+                    <div>
+                        <p className="text-xs font-semibold text-gray-400">Completed Value</p>
+                        <p className="text-2xl font-black text-gray-900 dark:text-white">£{completedValue.toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
+                    </div>
                 </div>
             </div>
 

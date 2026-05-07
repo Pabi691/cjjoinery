@@ -34,6 +34,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/leads', require('./routes/leadRoutes'));
 app.use('/api/quotes', require('./routes/quoteRoutes'));
+app.use('/api/enquiries', require('./routes/enquiryRoutes'));
 app.use('/api/jobs', require('./routes/jobRoutes'));
 app.use('/api/invoices', require('./routes/invoiceRoutes'));
 app.use('/api/reviews', require('./routes/reviewRoutes'));
@@ -42,6 +43,7 @@ app.use('/api/dashboard', require('./routes/dashboardRoutes'));
 app.use('/api/worker', require('./routes/workerAppRoutes'));
 app.use('/api/notifications', require('./routes/notificationRoutes'));
 app.use('/api/customers', require('./routes/customerRoutes'));
+app.use('/api/trash', require('./routes/trashRoutes'));
 
 app.get('/', (req, res) => {
     res.send('API is running...');

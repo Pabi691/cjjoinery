@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const connectDB = require('../config/db');
 const Worker = require('../models/Worker');
 const Job = require('../models/Job');
+const Trash = require('../models/Trash');
 const {
     decorateWorker,
     normalizeDateKey,
@@ -180,6 +181,13 @@ const deleteWorker = asyncHandler(async (req, res) => {
         res.status(404);
         throw new Error('Worker not found');
     }
+
+    await Trash.create({
+        itemType: 'worker',
+        itemId: worker._id.toString(),
+        itemName: worker.name || 'Worker',
+        data: worker.toObject(),
+    });
 
     // Remove worker from any assigned jobs
     await Job.updateMany(

@@ -240,6 +240,10 @@ class _HomeTabState extends State<_HomeTab> {
   // jobId -> checked-in state
   final Map<String, bool> _checkedIn = {};
   final Map<String, bool> _checkingIn = {};
+  final Map<String, bool> _checkedOut = {};
+  final Map<String, bool> _checkingOut = {};
+  final Map<String, double> _dailyEarnings = {};
+  final Map<String, double> _actualHours = {};
 
   String _todayKey() => DateFormat('yyyy-MM-dd').format(DateTime.now());
 
@@ -301,6 +305,8 @@ class _HomeTabState extends State<_HomeTab> {
   }
 
   double _todayHours(Map<String, dynamic> job) {
+    final jobId = job['_id']?.toString() ?? '';
+    if (_actualHours.containsKey(jobId)) return _actualHours[jobId]!;
     final ws = _workerScheduleForToday(job);
     if (ws != null) {
       final h = ws['hours'];
@@ -378,6 +384,60 @@ class _HomeTabState extends State<_HomeTab> {
       );
     } finally {
       if (mounted) setState(() => _checkingIn[jobId] = false);
+    }
+  }
+
+  bool _isCheckedOutToday(Map<String, dynamic> job) {
+    final jobId = job['_id']?.toString() ?? '';
+    if (_checkedOut[jobId] == true) return true;
+    final workerId = widget.worker['_id']?.toString() ?? '';
+    final today = _todayKey();
+    final wc = job['workCalendar'] as List<dynamic>? ?? [];
+    for (final e in wc) {
+      if (e['date']?.toString().startsWith(today) != true) continue;
+      final schedules = e['workerSchedules'] as List<dynamic>? ?? [];
+      for (final s in schedules) {
+        if (s['workerId']?.toString() == workerId && s['checkOutTime'] != null) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  Future<void> _checkOut(Map<String, dynamic> job) async {
+    final jobId = job['_id']?.toString() ?? '';
+    final workerId = widget.worker['_id']?.toString();
+    if (workerId == null || jobId.isEmpty) return;
+    setState(() => _checkingOut[jobId] = true);
+    try {
+      final result = await _api.checkOutWorker(workerId, jobId);
+      final earning = (result['dailyEarning'] as num?)?.toDouble() ?? 0.0;
+      final hours = (result['hoursWorked'] as num?)?.toDouble() ?? 0.0;
+      setState(() {
+        _checkedOut[jobId] = true;
+        _dailyEarnings[jobId] = earning;
+        _actualHours[jobId] = hours;
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Checked out! You earned £${earning.toStringAsFixed(2)} for ${hours.toStringAsFixed(1)}h',
+          ),
+          backgroundColor: AppColors.success,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Check-out failed: ${e.toString().replaceFirst('Exception: ', '')}'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _checkingOut[jobId] = false);
     }
   }
 
@@ -523,8 +583,11 @@ class _HomeTabState extends State<_HomeTab> {
               final startTime = ws?['startTime']?.toString() ?? '';
               final endTime   = ws?['endTime']?.toString()   ?? '';
               final hasTime   = startTime.isNotEmpty && endTime.isNotEmpty;
-              final checkedIn  = _isCheckedInToday(job);
-              final checkingIn = _checkingIn[jobId] ?? false;
+              final checkedIn    = _isCheckedInToday(job);
+              final checkingIn   = _checkingIn[jobId] ?? false;
+              final checkedOut   = _isCheckedOutToday(job);
+              final checkingOut  = _checkingOut[jobId] ?? false;
+              final dailyEarning = _dailyEarnings[jobId] ?? 0.0;
 
               String hoursLabel;
               if (hasTime) {
@@ -619,28 +682,72 @@ class _HomeTabState extends State<_HomeTab> {
                       ),
                     ),
                     const SizedBox(width: 10),
-                    if (checkedIn)
+                    if (checkedOut)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                         decoration: BoxDecoration(
-                          color: AppColors.success.withOpacity(0.12),
+                          color: AppColors.success.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.success.withOpacity(0.3)),
+                          border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
                         ),
-                        child: Row(
+                        child: Column(
                           mainAxisSize: MainAxisSize.min,
-                          children: const [
-                            Icon(Icons.check_circle_rounded, color: AppColors.success, size: 16),
-                            SizedBox(width: 4),
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
                             Text(
-                              'Checked In',
-                              style: TextStyle(
+                              '£${dailyEarning.toStringAsFixed(2)}',
+                              style: const TextStyle(
                                 color: AppColors.success,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 14,
+                              ),
+                            ),
+                            Text(
+                              'earned today',
+                              style: TextStyle(
+                                color: AppColors.success.withValues(alpha: 0.7),
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ],
+                        ),
+                      )
+                    else if (checkedIn)
+                      GestureDetector(
+                        onTap: checkingOut ? null : () => _checkOut(job),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: AppColors.success.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.success.withValues(alpha: 0.5)),
+                          ),
+                          child: checkingOut
+                              ? SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    color: AppColors.success,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: const [
+                                    Icon(Icons.logout_rounded, color: AppColors.success, size: 14),
+                                    SizedBox(width: 4),
+                                    Text(
+                                      'Check Out',
+                                      style: TextStyle(
+                                        color: AppColors.success,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                         ),
                       )
                     else
@@ -658,7 +765,7 @@ class _HomeTabState extends State<_HomeTab> {
                             borderRadius: BorderRadius.circular(12),
                             boxShadow: [
                               BoxShadow(
-                                color: AppColors.amber.withOpacity(0.3),
+                                color: AppColors.amber.withValues(alpha: 0.3),
                                 blurRadius: 8,
                                 offset: const Offset(0, 3),
                               ),

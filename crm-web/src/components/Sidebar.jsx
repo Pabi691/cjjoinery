@@ -1,12 +1,14 @@
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Briefcase, Users, UserCheck, FileText, LogOut, Hammer } from 'lucide-react';
+import { LayoutDashboard, Briefcase, Users, UserCheck, FileText, LogOut, Hammer, MessageSquare, Trash2 } from 'lucide-react';
 
 const menuItems = [
-    { path: '/',          label: 'Overview',  icon: LayoutDashboard, gradient: 'from-blue-500 to-cyan-400' },
-    { path: '/projects',  label: 'Projects',  icon: Briefcase,       gradient: 'from-violet-500 to-purple-400' },
-    { path: '/customers', label: 'Customers', icon: UserCheck,       gradient: 'from-emerald-500 to-teal-400' },
-    { path: '/workers',   label: 'Workers',   icon: Users,           gradient: 'from-amber-500 to-orange-400' },
-    { path: '/invoices',  label: 'Quotes',    icon: FileText,        gradient: 'from-rose-500 to-pink-400' },
+    { path: '/',            label: 'Overview',   icon: LayoutDashboard, gradient: 'from-blue-500 to-cyan-400' },
+    { path: '/enquiries',   label: 'Enquiries',  icon: MessageSquare,   gradient: 'from-sky-500 to-cyan-400' },
+    { path: '/invoices',    label: 'Quotes',     icon: FileText,        gradient: 'from-rose-500 to-pink-400' },
+    { path: '/projects',    label: 'Projects',   icon: Briefcase,       gradient: 'from-violet-500 to-purple-400' },
+    { path: '/customers',   label: 'Customers',  icon: UserCheck,       gradient: 'from-emerald-500 to-teal-400' },
+    { path: '/workers',     label: 'Workers',    icon: Users,           gradient: 'from-amber-500 to-orange-400' },
+    { path: '/trash',       label: 'Trash',      icon: Trash2,          gradient: 'from-red-500 to-rose-400' },
 ];
 
 const Sidebar = () => {

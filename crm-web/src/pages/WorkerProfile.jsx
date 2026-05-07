@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from '../utils/axiosConfig';
-import { Phone, Mail, Hammer, ArrowLeft, ChevronLeft, ChevronRight, Briefcase, Clock, CheckCircle2 } from 'lucide-react';
+import { Phone, Mail, Hammer, ArrowLeft, ChevronLeft, ChevronRight, Briefcase, Clock, CheckCircle2, PoundSterling } from 'lucide-react';
 import { DateTime } from 'luxon';
 import {
     getAvailabilityColor,
@@ -33,23 +33,82 @@ const WorkerProfile = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const [worker, setWorker] = useState(null);
+    const [jobs, setJobs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [calendarMonth, setCalendarMonth] = useState(DateTime.now().startOf('month'));
 
     useEffect(() => {
-        const fetchWorker = async () => {
+        const fetchData = async () => {
             try {
-                const { data } = await axios.get(`/workers/${id}`);
-                setWorker(normalizeWorker(data));
+                const [workerRes, jobsRes] = await Promise.all([
+                    axios.get(`/workers/${id}`),
+                    axios.get('/jobs'),
+                ]);
+                setWorker(normalizeWorker(workerRes.data));
+                const allJobs = jobsRes.data || [];
+                setJobs(allJobs.filter(j =>
+                    (j.assignedWorkers || []).some(w => (w._id || w)?.toString() === id)
+                ));
             } catch {
                 setError('Failed to fetch worker details');
             } finally {
                 setLoading(false);
             }
         };
-        fetchWorker();
+        fetchData();
     }, [id]);
+
+    const getWorkerHours = () => {
+        let total = 0;
+        jobs.forEach(job => {
+            (job.workCalendar || []).forEach(day => {
+                (day.workerSchedules || []).forEach(ws => {
+                    if (ws.workerId?.toString() === id && (ws.checkInTime || ws.checkOutTime))
+                        total += ws.hours || 0;
+                });
+            });
+        });
+        return total;
+    };
+
+    const getAttendanceLogs = () => {
+        const logs = [];
+        jobs.forEach(job => {
+            (job.workCalendar || []).forEach(day => {
+                (day.workerSchedules || []).forEach(ws => {
+                    if (ws.workerId?.toString() !== id) return;
+                    if (!ws.checkInTime && !ws.checkOutTime && !ws.hours) return;
+                    logs.push({
+                        date: day.date,
+                        jobTitle: job.title,
+                        jobId: job._id,
+                        checkIn: ws.checkInTime || null,
+                        checkOut: ws.checkOutTime || null,
+                        hours: ws.hours || 0,
+                        earning: (ws.hours || 0) * (worker?.hourlyRate || 0),
+                    });
+                });
+            });
+        });
+        logs.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        return logs;
+    };
+
+    const getTodayEarnings = () => {
+        const todayKey = new Date().toISOString().slice(0, 10);
+        let todayHours = 0;
+        jobs.forEach(job => {
+            (job.workCalendar || []).forEach(day => {
+                if (!day.date?.startsWith(todayKey)) return;
+                (day.workerSchedules || []).forEach(ws => {
+                    if (ws.workerId?.toString() === id && (ws.checkInTime || ws.checkOutTime))
+                        todayHours += ws.hours || 0;
+                });
+            });
+        });
+        return { hours: todayHours, earnings: todayHours * (worker?.hourlyRate || 0) };
+    };
 
     const buildCalendarDays = () => {
         const monthStart = calendarMonth.startOf('month');
@@ -182,6 +241,132 @@ const WorkerProfile = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Attendance Log */}
+            {(() => {
+                const logs = getAttendanceLogs();
+                const fmt = (iso) => {
+                    if (!iso) return '—';
+                    const d = new Date(iso);
+                    return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+                };
+                const fmtDate = (str) => {
+                    if (!str) return '—';
+                    try { return DateTime.fromISO(str).toLocaleString(DateTime.DATE_MED); }
+                    catch { return str; }
+                };
+                return (
+                    <div className="glass-panel rounded-3xl overflow-hidden">
+                        <div className="h-1.5 w-full bg-gradient-to-r from-blue-400 to-violet-400" />
+                        <div className="p-6">
+                            <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                                <Clock size={18} className="text-blue-500" />
+                                Attendance Log
+                            </h2>
+                            {logs.length === 0 ? (
+                                <p className="text-sm text-gray-400 dark:text-gray-500">No attendance records yet.</p>
+                            ) : (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm">
+                                        <thead>
+                                            <tr className="border-b border-gray-100 dark:border-white/10">
+                                                <th className="text-left py-2 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Date</th>
+                                                <th className="text-left py-2 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Project</th>
+                                                <th className="text-left py-2 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Check In</th>
+                                                <th className="text-left py-2 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Check Out</th>
+                                                <th className="text-right py-2 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Hours</th>
+                                                <th className="text-right py-2 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Earning</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-50 dark:divide-white/5">
+                                            {logs.map((log, i) => (
+                                                <tr key={i} className="hover:bg-white/40 dark:hover:bg-white/5 transition-colors">
+                                                    <td className="py-3 px-3 font-semibold text-gray-700 dark:text-gray-300 whitespace-nowrap">{fmtDate(log.date)}</td>
+                                                    <td className="py-3 px-3 text-gray-600 dark:text-gray-400 max-w-[180px] truncate">{log.jobTitle}</td>
+                                                    <td className="py-3 px-3 whitespace-nowrap">
+                                                        <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" />
+                                                            {fmt(log.checkIn)}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-3 px-3 whitespace-nowrap">
+                                                        <span className="inline-flex items-center gap-1 text-red-500 dark:text-red-400 font-medium">
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-red-400 flex-shrink-0" />
+                                                            {fmt(log.checkOut)}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-3 px-3 text-right font-bold text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                                                        {log.checkIn || log.checkOut ? `${log.hours.toFixed(2)}h` : '—'}
+                                                    </td>
+                                                    <td className="py-3 px-3 text-right font-bold text-amber-700 dark:text-amber-300 whitespace-nowrap">
+                                                        {log.checkIn || log.checkOut ? `£${log.earning.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                        <tfoot>
+                                            <tr className="border-t-2 border-gray-200 dark:border-white/10">
+                                                <td colSpan={4} className="py-3 px-3 text-xs font-semibold text-gray-400 uppercase">Total</td>
+                                                <td className="py-3 px-3 text-right font-black text-gray-800 dark:text-white whitespace-nowrap">
+                                                    {logs.filter(l => l.checkIn || l.checkOut).reduce((s, l) => s + l.hours, 0).toFixed(2)}h
+                                                </td>
+                                                <td className="py-3 px-3 text-right font-black text-amber-700 dark:text-amber-300 whitespace-nowrap">
+                                                    £{logs.filter(l => l.checkIn || l.checkOut).reduce((s, l) => s + l.earning, 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                </td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            })()}
+
+            {/* Earnings Summary */}
+            {(() => {
+                const totalHrs = getWorkerHours();
+                const totalEarnings = totalHrs * (worker.hourlyRate || 0);
+                const today = getTodayEarnings();
+                return (
+                    <div className="glass-panel rounded-3xl overflow-hidden">
+                        <div className="h-1.5 w-full bg-gradient-to-r from-amber-400 to-orange-400" />
+                        <div className="p-6">
+                            <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                                <PoundSterling size={18} className="text-amber-500" />
+                                Earnings Summary
+                            </h2>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30">
+                                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Total Hours</p>
+                                    <p className="text-2xl font-black text-gray-900 dark:text-white">
+                                        {totalHrs.toFixed(1)}<span className="text-sm font-bold text-gray-400 ml-1">hrs</span>
+                                    </p>
+                                </div>
+                                <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30">
+                                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Total Est. Earnings</p>
+                                    <p className="text-2xl font-black text-amber-700 dark:text-amber-300">
+                                        £{totalEarnings.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </p>
+                                </div>
+                                <div className={`p-4 rounded-2xl border ${today.hours > 0 ? 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-900/30' : 'bg-gray-50 dark:bg-white/5 border-gray-100 dark:border-white/10'}`}>
+                                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Today's Earnings</p>
+                                    {today.hours > 0 ? (
+                                        <>
+                                            <p className="text-2xl font-black text-emerald-700 dark:text-emerald-300">
+                                                £{today.earnings.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                            </p>
+                                            <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">{today.hours.toFixed(1)} hrs worked</p>
+                                        </>
+                                    ) : (
+                                        <p className="text-xl font-bold text-gray-400 dark:text-gray-500">—</p>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
 
             {/* Calendar */}
             <div className="glass-panel rounded-3xl overflow-hidden">

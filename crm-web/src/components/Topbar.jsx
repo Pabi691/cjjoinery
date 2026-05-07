@@ -124,6 +124,8 @@ const Topbar = () => {
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [selectedNotification, setSelectedNotification] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [deletingId, setDeletingId] = useState(null);
+    const [clearingAll, setClearingAll] = useState(false);
     const dropdownRef = useRef(null);
 
     const fetchNotifications = async () => {
@@ -131,6 +133,25 @@ const Topbar = () => {
             const { data } = await axios.get('/notifications');
             setNotifications(data || []);
         } catch (_) {}
+    };
+
+    const deleteNotification = async (e, id) => {
+        e.stopPropagation();
+        setDeletingId(id);
+        try {
+            await axios.delete(`/notifications/${id}`);
+            setNotifications(prev => prev.filter(n => n._id !== id));
+        } catch (_) {}
+        finally { setDeletingId(null); }
+    };
+
+    const clearAllNotifications = async () => {
+        setClearingAll(true);
+        try {
+            await axios.delete('/notifications');
+            setNotifications([]);
+        } catch (_) {}
+        finally { setClearingAll(false); }
     };
 
     useEffect(() => {
@@ -201,6 +222,15 @@ const Topbar = () => {
                                         <span className="text-xs font-semibold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 px-2 py-0.5 rounded-full">
                                             {unreadCount} total
                                         </span>
+                                        {notifications.length > 0 && (
+                                            <button
+                                                onClick={clearAllNotifications}
+                                                disabled={clearingAll}
+                                                className="text-xs font-semibold text-red-400 hover:text-red-600 dark:hover:text-red-300 transition-colors disabled:opacity-50"
+                                            >
+                                                {clearingAll ? 'Clearing…' : 'Clear All'}
+                                            </button>
+                                        )}
                                         <button onClick={() => setDropdownOpen(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
                                             <X size={16} />
                                         </button>
@@ -218,27 +248,36 @@ const Topbar = () => {
                                         notifications.slice(0, 15).map((n) => {
                                             const { label, color } = typeLabel(n.type);
                                             return (
-                                                <button
-                                                    key={n._id}
-                                                    onClick={() => openDetail(n)}
-                                                    className="w-full text-left px-5 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                                                >
-                                                    <div className="flex items-start gap-3">
-                                                        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-indigo-900 dark:to-purple-900 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold flex-shrink-0">
-                                                            {n.workerName?.charAt(0) || '?'}
-                                                        </div>
-                                                        <div className="flex-1 min-w-0">
-                                                            <div className="flex items-center gap-2 mb-0.5">
-                                                                <span className="text-sm font-semibold text-gray-900 dark:text-white">{n.workerName}</span>
-                                                                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${color}`}>{label}</span>
+                                                <div key={n._id} className="relative group flex items-start hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                                    <button
+                                                        onClick={() => openDetail(n)}
+                                                        className="flex-1 text-left px-5 py-3.5 min-w-0"
+                                                    >
+                                                        <div className="flex items-start gap-3 pr-6">
+                                                            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-indigo-900 dark:to-purple-900 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold flex-shrink-0">
+                                                                {n.workerName?.charAt(0) || '?'}
                                                             </div>
-                                                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{n.message}</p>
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="flex items-center gap-2 mb-0.5">
+                                                                    <span className="text-sm font-semibold text-gray-900 dark:text-white">{n.workerName}</span>
+                                                                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${color}`}>{label}</span>
+                                                                </div>
+                                                                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{n.message}</p>
+                                                            </div>
+                                                            <span className="text-[11px] text-gray-400 dark:text-gray-500 whitespace-nowrap flex-shrink-0 flex items-center gap-1 mt-0.5">
+                                                                <Clock size={11} /> {timeAgo(n.createdAt)}
+                                                            </span>
                                                         </div>
-                                                        <span className="text-[11px] text-gray-400 dark:text-gray-500 whitespace-nowrap flex-shrink-0 flex items-center gap-1 mt-0.5">
-                                                            <Clock size={11} /> {timeAgo(n.createdAt)}
-                                                        </span>
-                                                    </div>
-                                                </button>
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => deleteNotification(e, n._id)}
+                                                        disabled={deletingId === n._id}
+                                                        className="absolute right-3 top-3.5 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-300 hover:text-red-400 dark:hover:text-red-400 disabled:opacity-50"
+                                                        title="Delete notification"
+                                                    >
+                                                        <X size={13} />
+                                                    </button>
+                                                </div>
                                             );
                                         })
                                     )}

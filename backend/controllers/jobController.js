@@ -1,5 +1,6 @@
 const asyncHandler = require('express-async-handler');
 const Job = require('../models/Job');
+const Trash = require('../models/Trash');
 
 const normalizeDateKey = (value) => {
     if (!value) return '';
@@ -219,6 +220,7 @@ const getJobs = asyncHandler(async (req, res) => {
     const jobs = await Job.find({})
         .populate('customerId', 'name email')
         .populate('assignedWorkers', 'name')
+        .populate('quoteId', 'total quoteNumber')
         .lean();
     res.json(jobs.map(normalizeJob));
 });
@@ -383,6 +385,13 @@ const deleteJob = asyncHandler(async (req, res) => {
         res.status(404);
         throw new Error('Job not found');
     }
+
+    await Trash.create({
+        itemType: 'job',
+        itemId: job._id.toString(),
+        itemName: job.title || 'Job',
+        data: job.toObject(),
+    });
 
     await job.deleteOne();
     res.json({ message: 'Job removed' });

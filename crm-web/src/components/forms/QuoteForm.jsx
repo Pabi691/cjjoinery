@@ -6,6 +6,8 @@ const emptyItem = () => ({ description: '', quantity: 1, price: 0 });
 
 const QuoteForm = ({ quote, onSuccess, onCancel }) => {
     const [customers, setCustomers] = useState([]);
+    const [enquiries, setEnquiries] = useState([]);
+    const [enquiryId, setEnquiryId] = useState('');
     const [customerId, setCustomerId] = useState('');
     const [items, setItems] = useState([emptyItem()]);
     const [vatRate, setVatRate] = useState(20);
@@ -14,9 +16,17 @@ const QuoteForm = ({ quote, onSuccess, onCancel }) => {
     const [error, setError] = useState('');
 
     useEffect(() => {
-        axios.get('/customers').then(r => setCustomers(r.data)).catch(() => {});
+        Promise.all([
+            axios.get('/customers'),
+            axios.get('/enquiries'),
+        ]).then(([cRes, eRes]) => {
+            setCustomers(cRes.data);
+            // Only show New or Quoted enquiries for new quotes; all for editing
+            setEnquiries(eRes.data.filter(e => e.status === 'New' || e.status === 'Quoted'));
+        }).catch(() => {});
 
         if (quote) {
+            setEnquiryId(quote.enquiryId?._id || quote.enquiryId || '');
             setCustomerId(quote.customerId?._id || quote.customerId || '');
             setItems(quote.items?.length ? quote.items : [emptyItem()]);
             const sub = quote.subtotal || 0;
@@ -24,6 +34,18 @@ const QuoteForm = ({ quote, onSuccess, onCancel }) => {
             setValidUntil(quote.validUntil ? quote.validUntil.split('T')[0] : '');
         }
     }, [quote]);
+
+    // When an enquiry is selected, auto-fill the customer
+    const handleEnquiryChange = (e) => {
+        const id = e.target.value;
+        setEnquiryId(id);
+        if (id) {
+            const enq = enquiries.find(en => en._id === id);
+            if (enq?.customerId) {
+                setCustomerId(enq.customerId._id || enq.customerId);
+            }
+        }
+    };
 
     const updateItem = (index, field, value) => {
         setItems(prev => prev.map((item, i) =>
@@ -45,7 +67,15 @@ const QuoteForm = ({ quote, onSuccess, onCancel }) => {
 
         setLoading(true);
         setError('');
-        const payload = { customerId, items, subtotal, vat, total, validUntil: validUntil || undefined };
+        const payload = {
+            customerId,
+            enquiryId: enquiryId || undefined,
+            items,
+            subtotal,
+            vat,
+            total,
+            validUntil: validUntil || undefined,
+        };
         try {
             if (quote) {
                 await axios.put(`/quotes/${quote._id}`, payload);
@@ -61,14 +91,31 @@ const QuoteForm = ({ quote, onSuccess, onCancel }) => {
     };
 
     const inputCls = "w-full rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm p-2.5 focus:outline-none focus:ring-2 focus:ring-violet-400";
+    const labelCls = "block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5";
 
     return (
         <form onSubmit={handleSubmit} className="space-y-5">
             {error && <div className="text-sm text-red-500 bg-red-50 dark:bg-red-900/20 px-4 py-2.5 rounded-xl">{error}</div>}
 
+            {/* Enquiry link */}
+            <div>
+                <label className={labelCls}>Link to Enquiry <span className="text-gray-400 font-normal normal-case">(optional)</span></label>
+                <select value={enquiryId} onChange={handleEnquiryChange} className={inputCls}>
+                    <option value="">No linked enquiry</option>
+                    {enquiries.map(e => (
+                        <option key={e._id} value={e._id}>
+                            {e.title} — {e.customerId?.name}
+                        </option>
+                    ))}
+                </select>
+                {enquiryId && (
+                    <p className="text-xs text-sky-500 mt-1">Customer auto-filled from enquiry</p>
+                )}
+            </div>
+
             {/* Customer */}
             <div>
-                <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Customer</label>
+                <label className={labelCls}>Customer</label>
                 <select value={customerId} onChange={e => setCustomerId(e.target.value)} className={inputCls} required>
                     <option value="">Select customer…</option>
                     {customers.map(c => (
@@ -79,20 +126,19 @@ const QuoteForm = ({ quote, onSuccess, onCancel }) => {
 
             {/* Valid Until */}
             <div>
-                <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Valid Until</label>
+                <label className={labelCls}>Valid Until</label>
                 <input type="date" value={validUntil} onChange={e => setValidUntil(e.target.value)} className={inputCls} />
             </div>
 
             {/* Line Items */}
             <div>
                 <div className="flex items-center justify-between mb-2">
-                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Line Items</label>
+                    <label className={labelCls}>Line Items</label>
                     <button type="button" onClick={addItem} className="flex items-center gap-1 text-xs font-bold text-violet-600 dark:text-violet-400 hover:text-violet-800 transition-colors">
                         <Plus size={14} /> Add Item
                     </button>
                 </div>
 
-                {/* Header row */}
                 <div className="grid grid-cols-12 gap-2 mb-1.5 px-1">
                     <span className="col-span-6 text-[11px] font-semibold text-gray-400 uppercase">Description</span>
                     <span className="col-span-2 text-[11px] font-semibold text-gray-400 uppercase">Qty</span>
@@ -144,7 +190,7 @@ const QuoteForm = ({ quote, onSuccess, onCancel }) => {
                 />
             </div>
 
-            {/* Totals summary */}
+            {/* Totals */}
             <div className="bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-900/20 dark:to-purple-900/20 rounded-2xl p-4 space-y-2 border border-violet-100 dark:border-violet-800/30">
                 <div className="flex justify-between text-sm text-gray-600 dark:text-gray-300">
                     <span>Subtotal</span><span className="font-semibold">£{subtotal.toFixed(2)}</span>
